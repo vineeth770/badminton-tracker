@@ -157,7 +157,7 @@ if not st.session_state.authenticated:
             and password == st.secrets["LOGIN"]["APP_PASSWORD"]
         ):
             st.session_state.authenticated = True
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Incorrect username or password.")
     st.stop()
