@@ -3,4 +3,6 @@ pandas
 numpy
 gspread
 oauth2client
+firebase-admin
+
 
