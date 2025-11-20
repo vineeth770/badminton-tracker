@@ -1,8 +1,9 @@
 player,rating,wins,losses,matches
-Vineeth,1515.82,2,0,2
-Anand,1508.0,1,0,1
+Anand,1516.0,2,0,2
+Ramki,1508.0,1,0,1
 Shivram,1507.82,1,0,1
+Vineeth,1507.82,2,1,3
 Shashank,1492.18,0,1,1
-Satish,1492.18,0,1,1
 Ram,1492.0,0,1,1
 Yash,1492.0,0,1,1
+Satish,1484.18,0,2,2
