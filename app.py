@@ -163,13 +163,20 @@ if not ratings_df.empty:
             "matches": int(r["matches"])
         }
 
-# ------------------------
-# LOGIN PAGE
-# ------------------------
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
+import streamlit as st
+import datetime
+# ... your other imports ...
 
-if not st.session_state.authenticated:
+# -----------------------------------------
+# LOGIN SYSTEM (put this BEFORE any UI code)
+# -----------------------------------------
+
+# Initialize login state
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+# Show login page if not logged in
+if not st.session_state.logged_in:
     st.title("🔐 Login")
 
     username = st.text_input("Username")
@@ -180,11 +187,22 @@ if not st.session_state.authenticated:
             username == st.secrets["LOGIN"]["APP_USERNAME"]
             and password == st.secrets["LOGIN"]["APP_PASSWORD"]
         ):
-            st.session_state.authenticated = True
+            st.session_state.logged_in = True
+            st.success("Login successful! 🎉")
             st.rerun()
         else:
-            st.error("Incorrect username or password.")
-    st.stop()
+            st.error("Invalid username or password ❌")
+
+    st.stop()   # 🔥 prevents the rest of the app from running
+# -----------------------------------------
+# LOGOUT BUTTON (only visible after login)
+# -----------------------------------------
+st.sidebar.success("Logged in as Admin")
+
+if st.sidebar.button("Logout"):
+    st.session_state.logged_in = False
+    st.experimental_rerun()
+
 # Layout: collapsible sections (good for mobile)
 # -------------------------
 st.title("🏸 Badminton Doubles Tracker")
