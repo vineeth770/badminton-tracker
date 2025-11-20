@@ -9,12 +9,10 @@ import altair as alt
 import datetime
 import pytz
 from elo import update_elo, predict_win_probability
-import uuid
-# 1️⃣ Initialize login state ONCE
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
-# 2️⃣ LOGIN SCREEN
+# Show login page if not logged in
 if not st.session_state.logged_in:
     st.title("🔐 Login")
 
@@ -23,17 +21,16 @@ if not st.session_state.logged_in:
 
     if st.button("Login"):
         if (
-            username == st.secrets["LOGIN"]["APP_USERNAME"] and
-            password == st.secrets["LOGIN"]["APP_PASSWORD"]
+            username == st.secrets["LOGIN"]["APP_USERNAME"]
+            and password == st.secrets["LOGIN"]["APP_PASSWORD"]
         ):
-            st.session_state.logged_in = True      # stays until browser tab closes
-            st.success("Login successful!")
-            st.stop()                              # ⛔ STOP execution here
+            st.session_state.logged_in = True
+            st.success("Login successful! 🎉")
+            st.rerun()
         else:
-            st.error("Invalid credentials")
+            st.error("Invalid username or password ❌")
 
-    st.stop()                      
-
+    st.stop() 
 # Hide Streamlit UI elements
 # ------------------------
 hide_streamlit_style = """
