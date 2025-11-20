@@ -9,37 +9,44 @@ import altair as alt
 import datetime
 import pytz
 from elo import update_elo, predict_win_probability
-from streamlit_cookies_manager import EncryptedCookieManager
+# -------------------------------------------------------
+#  PERSISTENT LOGIN USING SESSION_STATE + QUERY PARAMS
+# -------------------------------------------------------
 
-cookies = EncryptedCookieManager(prefix="badminton_app_", password="any-random-secret-key")
+# Load saved login state from query params if available
+params = st.query_params
+if "auth" in params and params["auth"] == "1":
+    st.session_state.logged_in = True
 
-if not cookies.ready():
-    st.stop()
-
-# Load login state from cookie
+# Initialize session state on first run
 if "logged_in" not in st.session_state:
-    st.session_state.logged_in = cookies.get("logged_in") == "true"
+    st.session_state.logged_in = False
 
+# ---------------- LOGIN PAGE ---------------------------
 if not st.session_state.logged_in:
+
     st.title("🔐 Login Required")
 
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        if (username == st.secrets["LOGIN"]["APP_USERNAME"] and
-            password == st.secrets["LOGIN"]["APP_PASSWORD"]):
-
+        if (
+            username == st.secrets["LOGIN"]["APP_USERNAME"]
+            and password == st.secrets["LOGIN"]["APP_PASSWORD"]
+        ):
             st.session_state.logged_in = True
-            cookies.set("logged_in", "true")
-            cookies.save()
+
+            # 🔥 This makes login survive page refresh
+            st.query_params["auth"] = "1"
 
             st.success("Login successful!")
             st.rerun()
         else:
-            st.error("Invalid login")
+            st.error("Invalid username or password")
 
     st.stop()
+
 
 # Hide Streamlit UI elements
 # ------------------------
@@ -522,9 +529,9 @@ with st.expander("🔮 Predict Match Outcome", expanded=False):
             st.error("Ensure all four players have ratings (check ratings.csv).")
 
 #st.info("App synced with GitHub CSV files.")
+st.markdown("---")
 if st.button("Logout"):
     st.session_state.logged_in = False
-    cookies.set("logged_in", "false")
-    cookies.save()
-    st.success("Logged out!")
+    # Remove query param → logs user out permanently
+    st.query_params.clear()
     st.rerun()
