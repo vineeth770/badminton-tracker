@@ -9,44 +9,55 @@ import altair as alt
 import datetime
 import pytz
 from elo import update_elo, predict_win_probability
-# -------------------------------------------------------
-#  PERSISTENT LOGIN USING SESSION_STATE + QUERY PARAMS
-# -------------------------------------------------------
+import uuid
 
-# Load saved login state from query params if available
+# -------------------------------
+# 🔐 PERSISTENT LOGIN SYSTEM
+# -------------------------------
+
+# Secret credentials
+VALID_USER = st.secrets["LOGIN"]["APP_USERNAME"]
+VALID_PASS = st.secrets["LOGIN"]["APP_PASSWORD"]
+
+# Generate or read token from URL
 params = st.query_params
-if "auth" in params and params["auth"] == "1":
-    st.session_state.logged_in = True
+current_token = params.get("token", [""])[0]
 
-# Initialize session state on first run
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
+# Store token in session
+if "auth_token" not in st.session_state:
+    st.session_state.auth_token = None
 
-# ---------------- LOGIN PAGE ---------------------------
-if not st.session_state.logged_in:
+# Check if token in URL matches the session token
+if current_token and current_token == st.session_state.get("auth_token"):
+    logged_in = True
+else:
+    logged_in = False
 
+# -------------------------------
+# LOGIN SCREEN
+# -------------------------------
+if not logged_in:
     st.title("🔐 Login Required")
 
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        if (
-            username == st.secrets["LOGIN"]["APP_USERNAME"]
-            and password == st.secrets["LOGIN"]["APP_PASSWORD"]
-        ):
-            st.session_state.logged_in = True
+        if username == VALID_USER and password == VALID_PASS:
+            # Generate unique token
+            new_token = str(uuid.uuid4())
 
-            # 🔥 This makes login survive page refresh
-            st.query_params["auth"] = "1"
+            st.session_state.auth_token = new_token
 
-            st.success("Login successful!")
+            # Put token in URL
+            st.query_params(token=new_token)
+
+            st.success("Login successful! Loading app…")
             st.rerun()
         else:
-            st.error("Invalid username or password")
+            st.error("Invalid credentials")
 
-    st.stop()
-
+    st.stop()  # prevent loading app
 
 # Hide Streamlit UI elements
 # ------------------------
