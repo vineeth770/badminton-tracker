@@ -1,25 +1,73 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import requests
+import base64
+from io import StringIO
 from elo import update_elo, predict_win_probability
 
 st.set_page_config(page_title="Badminton Tracker", layout="centered")
-
 st.title("🏸 Badminton Doubles Tracker")
 
-# Normalize name (case insensitive)
+# --------------------------
+# Helper: normalize names
+# --------------------------
 def normalize(name):
-    return name.strip().title()  # "amit", "AMIT" → "Amit"
+    return name.strip().title()
 
-# Initialize local session matches storage
-if "matches" not in st.session_state:
-    st.session_state.matches = pd.DataFrame(columns=[
-        "playerA1", "playerA2", "playerB1", "playerB2", "scoreA", "scoreB"
-    ])
+# --------------------------
+# GitHub read/write helpers
+# --------------------------
+def load_csv_from_github(path):
+    url = f"https://api.github.com/repos/{st.secrets['REPO_OWNER']}/{st.secrets['REPO_NAME']}/contents/{path}"
+    headers = {"Authorization": f"token {st.secrets['GITHUB_TOKEN']}"}
 
-# ==========================
-# ADD MATCH
-# ==========================
+    response = requests.get(url, headers=headers).json()
+    content = base64.b64decode(response["content"]).decode("utf-8")
+
+    return pd.read_csv(StringIO(content)), response["sha"]
+
+
+def save_csv_to_github(path, df, sha, message="update csv"):
+    url = f"https://api.github.com/repos/{st.secrets['REPO_OWNER']}/{st.secrets['REPO_NAME']}/contents/{path}"
+    headers = {"Authorization": f"token {st.secrets['GITHUB_TOKEN']}"}
+
+    encoded = base64.b64encode(df.to_csv(index=False).encode()).decode()
+
+    data = {
+        "message": message,
+        "content": encoded,
+        "sha": sha
+    }
+
+    requests.put(url, headers=headers, json=data)
+
+
+# --------------------------
+# LOAD MATCHES + PLAYER RATINGS FROM GITHUB
+# --------------------------
+matches, matches_sha = load_csv_from_github(st.secrets["MATCHES_CSV"])
+ratings_df, ratings_sha = load_csv_from_github(st.secrets["RATINGS_CSV"])
+
+# Convert ratings to dict
+ratings = {
+    row["player"]: row["rating"]
+    for _, row in ratings_df.iterrows()
+}
+
+player_stats = {
+    row["player"]: {
+        "wins": row["wins"],
+        "losses": row["losses"],
+        "matches": row["matches"]
+    }
+    for _, row in ratings_df.iterrows()
+}
+
+
+# --------------------------
+# ADD MATCH SECTION
+# --------------------------
 st.header("➕ Add Match")
 
 with st.form("match_form"):
@@ -33,10 +81,11 @@ with st.form("match_form"):
     scoreA = col1.number_input("Score A", min_value=0)
     scoreB = col2.number_input("Score B", min_value=0)
 
-    submit = st.form_submit_button("Save Match")
+    submitted = st.form_submit_button("Save Match")
 
-if submit:
-    new_match = pd.DataFrame([{
+if submitted:
+    # Add to matches.csv
+    new_row = pd.DataFrame([{
         "playerA1": playerA1,
         "playerA2": playerA2,
         "playerB1": playerB1,
@@ -44,114 +93,93 @@ if submit:
         "scoreA": scoreA,
         "scoreB": scoreB
     }])
-    st.session_state.matches = pd.concat([st.session_state.matches, new_match], ignore_index=True)
-    st.success("Match added!")
 
-# ==========================
+    matches = pd.concat([matches, new_row], ignore_index=True)
+    save_csv_to_github(st.secrets["MATCHES_CSV"], matches, matches_sha, "Added match")
+
+    # --------------------------
+    # Update ratings and stats
+    # --------------------------
+    for p in [playerA1, playerA2, playerB1, playerB2]:
+        if p not in ratings:
+            ratings[p] = 1500
+            player_stats[p] = {"wins": 0, "losses": 0, "matches": 0}
+
+    # Update match counts
+    for p in [playerA1, playerA2, playerB1, playerB2]:
+        player_stats[p]["matches"] += 1
+
+    # Assign wins & losses
+    if scoreA > scoreB:
+        player_stats[playerA1]["wins"] += 1
+        player_stats[playerA2]["wins"] += 1
+        player_stats[playerB1]["losses"] += 1
+        player_stats[playerB2]["losses"] += 1
+    else:
+        player_stats[playerB1]["wins"] += 1
+        player_stats[playerB2]["wins"] += 1
+        player_stats[playerA1]["losses"] += 1
+        player_stats[playerA2]["losses"] += 1
+
+    # Update ELO
+    ratings = update_elo(playerA1, playerA2, playerB1, playerB2, scoreA, scoreB, ratings)
+
+    # Save ratings.csv
+    ratings_df = pd.DataFrame([
+        {
+            "player": p,
+            "rating": round(ratings[p], 2),
+            "wins": player_stats[p]["wins"],
+            "losses": player_stats[p]["losses"],
+            "matches": player_stats[p]["matches"]
+        }
+        for p in ratings
+    ])
+
+    save_csv_to_github(st.secrets["RATINGS_CSV"], ratings_df, ratings_sha, "Updated ratings")
+
+    st.success("Match & ratings updated!")
+
+
+# --------------------------
 # MATCH HISTORY
-# ==========================
+# --------------------------
 st.header("📜 Match History")
-
-matches = st.session_state.matches
 st.dataframe(matches)
 st.subheader(f"Total Matches Played: **{len(matches)}**")
 
-# ==========================
-# PLAYER INDIVIDUAL STATS
-# ==========================
+
+# --------------------------
+# PLAYER STATISTICS
+# --------------------------
 st.header("📊 Player Statistics")
-
-def compute_player_stats(df):
-    stats = {}
-
-    for _, row in df.iterrows():
-        A1, A2 = row["playerA1"], row["playerA2"]
-        B1, B2 = row["playerB1"], row["playerB2"]
-        scoreA, scoreB = row["scoreA"], row["scoreB"]
-
-        # Initialize dict entries
-        for p in [A1, A2, B1, B2]:
-            stats.setdefault(p, {"matches": 0, "wins": 0, "losses": 0})
-
-        # Everyone played a match
-        for p in [A1, A2, B1, B2]:
-            stats[p]["matches"] += 1
-
-        # Update win/loss
-        if scoreA > scoreB:
-            stats[A1]["wins"] += 1
-            stats[A2]["wins"] += 1
-            stats[B1]["losses"] += 1
-            stats[B2]["losses"] += 1
-        else:
-            stats[B1]["wins"] += 1
-            stats[B2]["wins"] += 1
-            stats[A1]["losses"] += 1
-            stats[A2]["losses"] += 1
-
-    # Compute win %
-    for p in stats:
-        m = stats[p]["matches"]
-        w = stats[p]["wins"]
-        stats[p]["win_pct"] = round((w / m) * 100, 1) if m else 0
-
-    return stats
-
-player_stats = compute_player_stats(matches)
-
-stats_df = pd.DataFrame([
-    {
-        "Player": p,
-        "Matches": player_stats[p]["matches"],
-        "Wins": player_stats[p]["wins"],
-        "Losses": player_stats[p]["losses"],
-        "Win %": player_stats[p]["win_pct"]
-    }
-    for p in player_stats
-])
-
-# Ensure columns always exist even if dataframe is empty
-if stats_df.empty:
-    stats_df = pd.DataFrame(columns=["Player", "Matches", "Wins", "Losses", "Win %"])
-
-st.dataframe(stats_df.sort_values("Win %", ascending=False))
+stats_display = ratings_df.copy()
+stats_display["Win %"] = (stats_display["wins"] / stats_display["matches"] * 100).round(1)
+st.dataframe(stats_display.sort_values("Win %", ascending=False))
 
 
-# ==========================
-# ELO RATINGS
-# ==========================
+# --------------------------
+# ELO RATINGS TABLE
+# --------------------------
 st.header("⭐ Player Ratings")
+st.dataframe(ratings_df.sort_values("rating", ascending=False))
 
-ratings = {}
-for _, m in matches.iterrows():
-    ratings = update_elo(
-        m["playerA1"], m["playerA2"],
-        m["playerB1"], m["playerB2"],
-        m["scoreA"], m["scoreB"],
-        ratings
-    )
 
-rating_df = pd.DataFrame(
-    [(player, round(rating, 2)) for player, rating in ratings.items()],
-    columns=["Player", "Rating"]
-)
-
-st.dataframe(rating_df.sort_values("Rating", ascending=False))
-
-# ==========================
+# --------------------------
 # PREDICTION
-# ==========================
+# --------------------------
 st.header("🔮 Predict Match Outcome")
 
-col3, col4 = st.columns(2)
-pA1 = normalize(col3.text_input("Team A P1"))
-pA2 = normalize(col4.text_input("Team A P2"))
-pB1 = normalize(col3.text_input("Team B P1"))
-pB2 = normalize(col4.text_input("Team B P2"))
+colA, colB = st.columns(2)
+
+A1 = normalize(colA.text_input("Team A - P1"))
+A2 = normalize(colA.text_input("Team A - P2"))
+B1 = normalize(colB.text_input("Team B - P1"))
+B2 = normalize(colB.text_input("Team B - P2"))
 
 if st.button("Predict"):
-    if all(p in ratings for p in [pA1, pA2, pB1, pB2]):
-        prob = predict_win_probability(ratings, pA1, pA2, pB1, pB2)
-        st.success(f"Team A Win Probability: **{prob*100:.2f}%**")
+    if all(p in ratings for p in [A1, A2, B1, B2]):
+        prob = predict_win_probability(ratings, A1, A2, B1, B2)
+        st.success(f"Team A win probability: **{prob*100:.2f}%**")
     else:
-        st.error("One or more players don't have ratings yet.")
+        st.error("One or more players do not exist in the system!")
