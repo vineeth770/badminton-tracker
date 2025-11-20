@@ -110,7 +110,12 @@ stats_df = pd.DataFrame([
     for p in player_stats
 ])
 
+# Ensure columns always exist even if dataframe is empty
+if stats_df.empty:
+    stats_df = pd.DataFrame(columns=["Player", "Matches", "Wins", "Losses", "Win %"])
+
 st.dataframe(stats_df.sort_values("Win %", ascending=False))
+
 
 # ==========================
 # ELO RATINGS
