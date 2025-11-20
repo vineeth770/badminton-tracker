@@ -9,6 +9,7 @@ st.set_page_config(page_title="Badminton Tracker", layout="centered")
 
 # DEBUG: show which secrets loaded — move this AFTER imports
 st.write("SECRETS LOADED:", list(st.secrets.keys()))
+st.write("SECRETS RAW CONTENT:", st.secrets._secrets)
 
 st.title("🏸 Badminton Doubles Tracker")
 
