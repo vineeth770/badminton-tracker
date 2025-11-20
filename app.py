@@ -9,6 +9,31 @@ import altair as alt
 import datetime
 import pytz
 from elo import update_elo, predict_win_probability
+# ----------------------------------------------------------
+# 🔐  LOGIN SYSTEM (Persistent using st.session_state)
+# ----------------------------------------------------------
+
+# 1️⃣ Initialize login state once
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+# 2️⃣ Show login page if NOT logged in
+if not st.session_state.logged_in:
+    st.title("🔐 Login Required")
+
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+        if (username == st.secrets["LOGIN"]["APP_USERNAME"] and
+            password == st.secrets["LOGIN"]["APP_PASSWORD"]):
+            st.session_state.logged_in = True      # <--- Persistent
+            st.success("Login success! Loading app...")
+            st.rerun()                              # <--- IMPORTANT
+        else:
+            st.error("Invalid username or password")
+
+    st.stop()  # ⛔ Prevent app from loading if not logged in
 # ------------------------
 # Hide Streamlit UI elements
 # ------------------------
@@ -162,46 +187,6 @@ if not ratings_df.empty:
             "losses": int(r["losses"]),
             "matches": int(r["matches"])
         }
-
-import streamlit as st
-import datetime
-# ... your other imports ...
-
-# -----------------------------------------
-# LOGIN SYSTEM (put this BEFORE any UI code)
-# -----------------------------------------
-
-# Initialize login state
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
-# Show login page if not logged in
-if not st.session_state.logged_in:
-    st.title("🔐 Login")
-
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-
-    if st.button("Login"):
-        if (
-            username == st.secrets["LOGIN"]["APP_USERNAME"]
-            and password == st.secrets["LOGIN"]["APP_PASSWORD"]
-        ):
-            st.session_state.logged_in = True
-            st.success("Login successful! 🎉")
-            st.rerun()
-        else:
-            st.error("Invalid username or password ❌")
-
-    st.stop()   # 🔥 prevents the rest of the app from running
-# -----------------------------------------
-# LOGOUT BUTTON (only visible after login)
-# -----------------------------------------
-st.sidebar.success("Logged in as Admin")
-
-if st.sidebar.button("Logout"):
-    st.session_state.logged_in = False
-    st.experimental_rerun()
 
 # Layout: collapsible sections (good for mobile)
 # -------------------------
