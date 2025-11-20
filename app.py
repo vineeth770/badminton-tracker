@@ -192,7 +192,7 @@ st.write("Logged in.")
 # -------------------------
 # Add Match - in an expander (collapsible)
 # -------------------------
-with st.expander("➕ Add New Match", expanded=True):
+with st.expander("➕ Team & Score", expanded=True):
     left, right = st.columns([1,1])
     # keep score inputs as text so they appear empty by default on page load
     with st.form("add_match_form", clear_on_submit=True):
