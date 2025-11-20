@@ -1,5 +1,3 @@
-st.write("SECRETS LOADED:", list(st.secrets.keys()))
-
 import streamlit as st
 import pandas as pd
 import gspread
@@ -8,6 +6,9 @@ from elo import update_elo, predict_win_probability
 import datetime
 
 st.set_page_config(page_title="Badminton Tracker", layout="centered")
+
+# DEBUG: show which secrets loaded — move this AFTER imports
+st.write("SECRETS LOADED:", list(st.secrets.keys()))
 
 st.title("🏸 Badminton Doubles Tracker")
 
