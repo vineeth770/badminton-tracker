@@ -273,34 +273,46 @@ matches = parse_dates_safe(matches)
 # ------------------------
 st.header("📜 Match History & Filters")
 
+# ensure date_parsed is present only for sorting/filtering
+matches["date_parsed"] = pd.to_datetime(matches["date"], errors="coerce")
+
 min_date = matches["date_parsed"].min()
 max_date = matches["date_parsed"].max()
+
 if pd.isna(min_date):
     min_date = datetime.date.today()
+else:
+    min_date = min_date.date()
+
 if pd.isna(max_date):
     max_date = datetime.date.today()
+else:
+    max_date = max_date.date()
 
-col1, col2, col3 = st.columns([2,2,1])
-with col1:
-    start_date = st.date_input("From", value=min_date.date() if hasattr(min_date, "date") else datetime.date.today())
-with col2:
-    end_date = st.date_input("To", value=max_date.date() if hasattr(max_date, "date") else datetime.date.today())
-with col3:
-    if st.button("Apply filter"):
-        pass
+c1, c2 = st.columns(2)
+start_date = c1.date_input("From", value=min_date)
+end_date = c2.date_input("To", value=max_date)
 
+# filter
 start_dt = pd.to_datetime(start_date)
-end_dt = pd.to_datetime(end_date) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
-filtered = matches[(matches["date_parsed"] >= start_dt) & (matches["date_parsed"] <= end_dt)]
+end_dt = pd.to_datetime(end_date) + pd.Timedelta(days=1)
 
-cols_to_show = [c for c in ["date","playerA1","playerA2","playerB1","playerB2","scoreA","scoreB","scoreA_num","scoreB_num"] if c in filtered.columns]
+filtered = matches[(matches["date_parsed"] >= start_dt) &
+                   (matches["date_parsed"] < end_dt)]
 
-st.subheader(f"Showing {len(filtered)} matches between {start_date} and {end_date}")
-# ensure date_parsed exists before sorting
-if "date_parsed" not in filtered.columns:
-    filtered = parse_dates_safe(filtered)
-st.dataframe(filtered[cols_to_show].sort_values("date_parsed", ascending=False).reset_index(drop=True))
+# columns to show (never include date_parsed)
+cols_to_show = ["date","playerA1","playerA2","playerB1","playerB2","scoreA","scoreB"]
+cols_to_show = [c for c in cols_to_show if c in filtered.columns]
 
+st.subheader(f"Showing {len(filtered)} matches")
+
+# Sort using date_parsed, but DO NOT display date_parsed
+filtered_display = filtered[cols_to_show].copy()
+filtered_sorted = filtered.sort_values("date_parsed", ascending=False)
+
+st.dataframe(
+    filtered_sorted[cols_to_show].reset_index(drop=True)
+)
 # ------------------------
 # Player individual stats
 # ------------------------
