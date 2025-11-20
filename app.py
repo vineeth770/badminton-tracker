@@ -25,7 +25,8 @@ def load_csv_from_github(path):
     response = requests.get(url, headers=headers).json()
     content = base64.b64decode(response["content"]).decode("utf-8")
 
-    return pd.read_csv(StringIO(content)), response["sha"]
+    df = pd.read_csv(StringIO(content))
+    return df, response["sha"]
 
 
 def save_csv_to_github(path, df, sha, message="update csv"):
@@ -50,20 +51,16 @@ matches, matches_sha = load_csv_from_github(st.secrets["MATCHES_CSV"])
 ratings_df, ratings_sha = load_csv_from_github(st.secrets["RATINGS_CSV"])
 
 # Convert ratings to dict
-ratings = {
-    row["player"]: row["rating"]
-    for _, row in ratings_df.iterrows()
-}
+ratings = {}
+player_stats = {}
 
-player_stats = {
-    row["player"]: {
-        "wins": row["wins"],
-        "losses": row["losses"],
-        "matches": row["matches"]
+for _, row in ratings_df.iterrows():
+    ratings[row["player"]] = float(row["rating"])
+    player_stats[row["player"]] = {
+        "wins": int(row["wins"]),
+        "losses": int(row["losses"]),
+        "matches": int(row["matches"])
     }
-    for _, row in ratings_df.iterrows()
-}
-
 
 # --------------------------
 # ADD MATCH SECTION
@@ -97,19 +94,18 @@ if submitted:
     matches = pd.concat([matches, new_row], ignore_index=True)
     save_csv_to_github(st.secrets["MATCHES_CSV"], matches, matches_sha, "Added match")
 
-    # --------------------------
-    # Update ratings and stats
-    # --------------------------
+    # Initialize ratings/stats if player is new
     for p in [playerA1, playerA2, playerB1, playerB2]:
         if p not in ratings:
             ratings[p] = 1500
+        if p not in player_stats:
             player_stats[p] = {"wins": 0, "losses": 0, "matches": 0}
 
-    # Update match counts
+    # Update match count
     for p in [playerA1, playerA2, playerB1, playerB2]:
         player_stats[p]["matches"] += 1
 
-    # Assign wins & losses
+    # Update win/loss
     if scoreA > scoreB:
         player_stats[playerA1]["wins"] += 1
         player_stats[playerA2]["wins"] += 1
@@ -122,7 +118,12 @@ if submitted:
         player_stats[playerA2]["losses"] += 1
 
     # Update ELO
-    ratings = update_elo(playerA1, playerA2, playerB1, playerB2, scoreA, scoreB, ratings)
+    ratings = update_elo(
+        playerA1, playerA2,
+        playerB1, playerB2,
+        scoreA, scoreB,
+        ratings
+    )
 
     # Save ratings.csv
     ratings_df = pd.DataFrame([
@@ -153,8 +154,17 @@ st.subheader(f"Total Matches Played: **{len(matches)}**")
 # PLAYER STATISTICS
 # --------------------------
 st.header("📊 Player Statistics")
+
 stats_display = ratings_df.copy()
-stats_display["Win %"] = (stats_display["wins"] / stats_display["matches"] * 100).round(1)
+
+# Ensure numeric columns
+for col in ["wins", "losses", "matches", "rating"]:
+    stats_display[col] = pd.to_numeric(stats_display[col], errors="coerce")
+
+stats_display["Win %"] = (
+    (stats_display["wins"] / stats_display["matches"]) * 100
+).round(1)
+
 st.dataframe(stats_display.sort_values("Win %", ascending=False))
 
 
