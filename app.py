@@ -131,7 +131,11 @@ for _, m in matches.iterrows():
         ratings
     )
 
-rating_df = pd.DataFrame(ratings.items(), columns=["Player", "Rating"])
+rating_df = pd.DataFrame(
+    [(player, round(rating, 2)) for player, rating in ratings.items()],
+    columns=["Player", "Rating"]
+)
+
 st.dataframe(rating_df.sort_values("Rating", ascending=False))
 
 # ==========================
