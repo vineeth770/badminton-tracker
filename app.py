@@ -12,7 +12,6 @@ from elo import update_elo, predict_win_probability
 
 IST = pytz.timezone("Asia/Kolkata")
 today_ist = datetime.now(IST).date()
-today = datetime.date.today()
 # -------------------------
 # Page config & small CSS for mobile friendliness
 # -------------------------
