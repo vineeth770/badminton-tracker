@@ -34,6 +34,15 @@ if not st.session_state.logged_in:
             st.error("Invalid username or password")
 
     st.stop()  # ⛔ Prevent app from loading if not logged in
+    # ----------------------------------------------------------
+# 🔓 LOGOUT BUTTON (placed at bottom)
+# ----------------------------------------------------------
+st.markdown("---")
+if st.button("Logout"):
+    st.session_state.logged_in = False
+    st.success("Logged out!")
+    st.rerun()
+
 # ------------------------
 # Hide Streamlit UI elements
 # ------------------------
