@@ -10,54 +10,29 @@ import datetime
 import pytz
 from elo import update_elo, predict_win_probability
 import uuid
+# 1️⃣ Initialize login state ONCE
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
 
-# -------------------------------
-# 🔐 PERSISTENT LOGIN SYSTEM
-# -------------------------------
-
-# Secret credentials
-VALID_USER = st.secrets["LOGIN"]["APP_USERNAME"]
-VALID_PASS = st.secrets["LOGIN"]["APP_PASSWORD"]
-
-# Generate or read token from URL
-params = st.query_params
-current_token = params.get("token", [""])[0]
-
-# Store token in session
-if "auth_token" not in st.session_state:
-    st.session_state.auth_token = None
-
-# Check if token in URL matches the session token
-if current_token and current_token == st.session_state.get("auth_token"):
-    logged_in = True
-else:
-    logged_in = False
-
-# -------------------------------
-# LOGIN SCREEN
-# -------------------------------
-if not logged_in:
-    st.title("🔐 Login Required")
+# 2️⃣ LOGIN SCREEN
+if not st.session_state.logged_in:
+    st.title("🔐 Login")
 
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        if username == VALID_USER and password == VALID_PASS:
-            # Generate unique token
-            new_token = str(uuid.uuid4())
-
-            st.session_state.auth_token = new_token
-
-            # Put token in URL
-            st.query_params(token=new_token)
-
-            st.success("Login successful! Loading app…")
-            st.rerun()
+        if (
+            username == st.secrets["LOGIN"]["APP_USERNAME"] and
+            password == st.secrets["LOGIN"]["APP_PASSWORD"]
+        ):
+            st.session_state.logged_in = True      # stays until browser tab closes
+            st.success("Login successful!")
+            st.stop()                              # ⛔ STOP execution here
         else:
             st.error("Invalid credentials")
 
-    st.stop()  # prevent loading app
+    st.stop()                      
 
 # Hide Streamlit UI elements
 # ------------------------
