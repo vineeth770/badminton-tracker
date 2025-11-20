@@ -14,6 +14,10 @@ st.title("🏸 Badminton Doubles Tracker")
 
 # ========== GOOGLE SHEETS AUTH ==========
 # Decode base64 service account JSON safely
+scope = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
 json_bytes = base64.b64decode(st.secrets["google_credentials_b64"])
 service_info = json.loads(json_bytes.decode("utf-8"))
 
