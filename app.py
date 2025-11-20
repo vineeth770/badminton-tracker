@@ -136,30 +136,23 @@ if not ratings_df.empty:
             "matches": int(r["matches"])
         }
 
-# -------------------------
-# SIMPLE LOGIN (Option 1)
-# -------------------------
-st.sidebar.title("🔐 Login")
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
-# credentials from secrets
-LOGIN = st.secrets.get("LOGIN", {})
-correct_user = LOGIN.get("username", "")
-correct_pass = LOGIN.get("password", "")
-
 if not st.session_state.logged_in:
-    user = st.sidebar.text_input("Username")
-    pwd = st.sidebar.text_input("Password", type="password")
-    if st.sidebar.button("Login"):
-        if user == correct_user and pwd == correct_pass:
-            st.session_state.logged_in = True
-            st.experimental_rerun()
-        else:
-            st.sidebar.error("Invalid credentials")
-    st.stop()  # stop further execution until logged in
+    st.title("🔐 Login")
 
-# -------------------------
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+        if username == st.secrets["APP_USERNAME"] and password == st.secrets["APP_PASSWORD"]:
+            st.session_state.logged_in = True
+            st.success("Login successful!")
+            st.rerun()       # <-- FIXED HERE
+        else:
+            st.error("Invalid credentials.")
+    st.stop()
 # Layout: collapsible sections (good for mobile)
 # -------------------------
 st.title("🏸 Badminton Doubles Tracker")
