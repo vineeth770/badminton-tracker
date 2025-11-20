@@ -179,7 +179,7 @@ with st.expander("➕ Add New Match", expanded=True):
         B2 = normalize(right.text_input("Team B - Player 2", value=""))
         sA_text = left.text_input("Score A (leave empty = 0)", value="", key="sa")
         sB_text = right.text_input("Score B (leave empty = 0)", value="", key="sb")
-        match_date = right.date_input("Match date", value=match_date)
+        match_date = right.date_input("Match date", value=today_ist)
         submitted = st.form_submit_button("Save Match")
 
         if submitted:
