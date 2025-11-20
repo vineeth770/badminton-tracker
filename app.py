@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
 import gspread
+import base64
+import json
+
 from google.oauth2.service_account import Credentials
 from elo import update_elo, predict_win_probability
 import datetime
@@ -10,16 +13,11 @@ st.set_page_config(page_title="Badminton Tracker", layout="centered")
 st.title("🏸 Badminton Doubles Tracker")
 
 # ========== GOOGLE SHEETS AUTH ==========
+# Decode base64 service account JSON safely
+json_bytes = base64.b64decode(st.secrets["google_credentials_b64"])
+service_info = json.loads(json_bytes.decode("utf-8"))
 
-scope = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive"
-]
-
-creds = Credentials.from_service_account_info(
-    st.secrets["google_credentials"], scopes=scope
-)
-
+creds = Credentials.from_service_account_info(service_info, scopes=scope)
 client = gspread.authorize(creds)
 
 # Load tabs by URL
