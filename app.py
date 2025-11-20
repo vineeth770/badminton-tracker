@@ -1,3 +1,5 @@
+st.write("SECRETS LOADED:", list(st.secrets.keys()))
+
 import streamlit as st
 import pandas as pd
 import gspread
@@ -163,3 +165,4 @@ if st.button("Predict"):
         st.success(f"Team A Win Probability: **{prob*100:.2f}%**")
     else:
         st.error("One or more players do not have a rating yet.")
+
