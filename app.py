@@ -287,29 +287,43 @@ matches = parse_date_column(matches)
 # ------------------------
 st.header("📜 Match History & Filters")
 
-min_date = matches["date_parsed"].min()
-max_date = matches["date_parsed"].max()
-if pd.isna(min_date):
-    min_date = datetime.date.today()
-if pd.isna(max_date):
-    max_date = datetime.date.today()
+# ALWAYS ensure date_parsed column exists BEFORE filtering
+if "date_parsed" not in matches.columns:
+    matches["date_parsed"] = pd.to_datetime(matches["date"], errors="coerce")
+    matches["date_parsed"] = matches["date_parsed"].fillna(
+        pd.Timestamp("1970-01-01") + pd.to_timedelta(matches.index, unit="D")
+    )
 
-col1, col2, col3 = st.columns([2,2,1])
-with col1:
-    start_date = st.date_input("From", value=min_date.date() if hasattr(min_date, "date") else datetime.date.today())
-with col2:
-    end_date = st.date_input("To", value=max_date.date() if hasattr(max_date, "date") else datetime.date.today())
-with col3:
-    if st.button("Apply filter"):
-        pass  # just trigger rerun
+# Safe defaults
+if matches["date_parsed"].isnull().all():
+    matches["date_parsed"] = pd.Timestamp("1970-01-01") + pd.to_timedelta(matches.index, unit="D")
+
+min_date = matches["date_parsed"].min().date()
+max_date = matches["date_parsed"].max().date()
+
+col1, col2 = st.columns(2)
+start_date = col1.date_input("From", min_date)
+end_date = col2.date_input("To", max_date)
 
 start_dt = pd.to_datetime(start_date)
 end_dt = pd.to_datetime(end_date) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
 
-filtered = matches[(matches["date_parsed"] >= start_dt) & (matches["date_parsed"] <= end_dt)]
+# Filtering
+filtered = matches[
+    (matches["date_parsed"] >= start_dt) &
+    (matches["date_parsed"] <= end_dt)
+].copy()
 
-cols_to_show = [c for c in ["date", "playerA1", "playerA2", "playerB1", "playerB2", "scoreA", "scoreB"] if c in filtered.columns]
-st.subheader(f"Showing {len(filtered)} matches between {start_date} and {end_date}")
+# Columns that actually exist
+cols_to_show = [c for c in ["date","playerA1","playerA2","playerB1","playerB2","scoreA","scoreB"]
+                if c in filtered.columns]
+
+# Only sort if column exists
+if "date_parsed" in filtered.columns:
+    filtered = filtered.sort_values("date_parsed", ascending=False)
+
+st.subheader(f"Showing {len(filtered)} matches from {start_date} to {end_date}")
+st.dataframe(filtered[cols_to_show].reset_index(drop=True))
 
 # Only sort by date_parsed if it exists in filtered
 if "date_parsed" in filtered.columns:
