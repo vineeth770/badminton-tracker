@@ -16,7 +16,6 @@ st.title("🏸 Badminton Doubles Tracker")
 # Helpers
 # ------------------------
 def normalize(name):
-    """Normalize player names (case-insensitive)."""
     if not isinstance(name, str):
         return ""
     return name.strip().title()
@@ -34,7 +33,7 @@ def safe_int_from_text(s):
         return 0
 
 # ------------------------
-# GitHub helpers (read/write CSV)
+# GitHub helpers
 # ------------------------
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 OWNER = st.secrets["REPO_OWNER"]
@@ -42,44 +41,35 @@ REPO = st.secrets["REPO_NAME"]
 MATCHES_PATH = st.secrets["MATCHES_CSV"]
 RATINGS_PATH = st.secrets["RATINGS_CSV"]
 API_BASE = f"https://api.github.com/repos/{OWNER}/{REPO}/contents"
+HEADERS = {"Authorization": f"token {GITHUB_TOKEN}"}
 
-headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+MATCHES_COLS = ["date", "playerA1", "playerA2", "playerB1", "playerB2", "scoreA", "scoreB"]
+RATINGS_COLS = ["player", "rating", "wins", "losses", "matches"]
 
 def github_get_csv(path, default_columns=None):
-    """
-    Return (df, sha). If file not found, return empty df with default_columns and sha=None.
-    """
     url = f"{API_BASE}/{path}"
-    resp = requests.get(url, headers=headers)
+    resp = requests.get(url, headers=HEADERS)
     if resp.status_code == 200:
         info = resp.json()
-        content_b64 = info.get("content", "")
-        content = base64.b64decode(content_b64).decode("utf-8")
+        content = base64.b64decode(info.get("content", "")).decode("utf-8")
         df = pd.read_csv(StringIO(content))
         return df, info.get("sha")
     elif resp.status_code == 404:
-        # file missing — create an empty DF with columns
-        if default_columns is None:
-            df = pd.DataFrame()
-        else:
-            df = pd.DataFrame(columns=default_columns)
-        return df, None
+        if default_columns:
+            return pd.DataFrame(columns=default_columns), None
+        return pd.DataFrame(), None
     else:
         st.error(f"GitHub API error {resp.status_code} while reading {path}: {resp.text}")
         st.stop()
 
 def github_put_csv(path, df, sha=None, message="update csv"):
-    """
-    Create or update a file in the repo. If sha is None, GitHub treats it as creating a new file.
-    Returns new sha.
-    """
     url = f"{API_BASE}/{path}"
     content = df.to_csv(index=False)
     encoded = base64.b64encode(content.encode()).decode()
     payload = {"message": message, "content": encoded}
     if sha:
         payload["sha"] = sha
-    resp = requests.put(url, headers=headers, json=payload)
+    resp = requests.put(url, headers=HEADERS, json=payload)
     if resp.status_code in (200, 201):
         return resp.json().get("content", {}).get("sha")
     else:
@@ -87,11 +77,8 @@ def github_put_csv(path, df, sha=None, message="update csv"):
         st.stop()
 
 # ------------------------
-# Load CSVs (safe defaults)
+# Load CSVs (safe)
 # ------------------------
-MATCHES_COLS = ["date", "playerA1", "playerA2", "playerB1", "playerB2", "scoreA", "scoreB"]
-RATINGS_COLS = ["player", "rating", "wins", "losses", "matches"]
-
 matches, matches_sha = github_get_csv(MATCHES_PATH, default_columns=MATCHES_COLS)
 ratings_df, ratings_sha = github_get_csv(RATINGS_PATH, default_columns=RATINGS_COLS)
 
@@ -104,100 +91,97 @@ for c in RATINGS_COLS:
     if c not in ratings_df.columns:
         ratings_df[c] = []
 
-# Normalize string columns and convert numeric columns
-for c in ["playerA1","playerA2","playerB1","playerB2","date"]:
+# Normalize names (strings) in matches and keep score text columns (so they appear empty in UI)
+for c in ["playerA1", "playerA2", "playerB1", "playerB2", "date"]:
     if c in matches.columns:
         matches[c] = matches[c].fillna("").astype(str).apply(normalize)
 
-# Keep score columns as original text for display (empty when blank)
-# Maintain numeric helpers for calculations
+# numeric helper columns for computations
 matches["scoreA_num"] = pd.to_numeric(matches.get("scoreA", ""), errors="coerce").fillna(0).astype(int)
 matches["scoreB_num"] = pd.to_numeric(matches.get("scoreB", ""), errors="coerce").fillna(0).astype(int)
 
-# Make sure ratings_df numeric types (if file existed)
+# Ensure ratings_df numeric types
 if not ratings_df.empty:
     ratings_df["rating"] = pd.to_numeric(ratings_df["rating"], errors="coerce").fillna(1500.0)
     ratings_df["wins"] = pd.to_numeric(ratings_df["wins"], errors="coerce").fillna(0).astype(int)
     ratings_df["losses"] = pd.to_numeric(ratings_df["losses"], errors="coerce").fillna(0).astype(int)
     ratings_df["matches"] = pd.to_numeric(ratings_df["matches"], errors="coerce").fillna(0).astype(int)
 
-# Build ratings dict and player_stats from ratings_df (for prediction UI)
+# Build ratings dict for quick lookups (may be recalculated below)
 ratings = {}
 player_stats = {}
 if not ratings_df.empty:
     for _, r in ratings_df.iterrows():
         p = normalize(r["player"])
         ratings[p] = float(r["rating"])
-        player_stats[p] = {
-            "wins": int(r["wins"]),
-            "losses": int(r["losses"]),
-            "matches": int(r["matches"])
-        }
+        player_stats[p] = {"wins": int(r["wins"]), "losses": int(r["losses"]), "matches": int(r["matches"])}
 
 # ------------------------
-# UI: Add new match
+# Add Match Form (clear_on_submit=True so inputs clear after save)
 # ------------------------
 st.header("➕ Add New Match")
 
-# Use clear_on_submit=True so inputs (including score fields) are cleared after save
 with st.form("add_match", clear_on_submit=True):
-    left, right = st.columns([1,1])
-    A1 = normalize(left.text_input("Team A - Player 1", value=""))
-    A2 = normalize(right.text_input("Team A - Player 2", value=""))
-    B1 = normalize(left.text_input("Team B - Player 1", value=""))
-    B2 = normalize(right.text_input("Team B - Player 2", value=""))
+    left, right = st.columns(2)
+    a1 = normalize(left.text_input("Team A - Player 1", value=""))
+    a2 = normalize(right.text_input("Team A - Player 2", value=""))
+    b1 = normalize(left.text_input("Team B - Player 1", value=""))
+    b2 = normalize(right.text_input("Team B - Player 2", value=""))
 
-    # Score inputs are text so they start empty and remain empty until user enters
-    sA_text = left.text_input("Score A (leave empty = 0)", value="", key="sa_input")
-    sB_text = right.text_input("Score B (leave empty = 0)", value="", key="sb_input")
+    # use text_input so it appears empty by default — treat blank as 0 when saving
+    sa_text = left.text_input("Score A (leave empty = 0)", value="", key="sa")
+    sb_text = right.text_input("Score B (leave empty = 0)", value="", key="sb")
 
-    # Date input default: today's date (must be datetime.date)
     match_date = right.date_input("Match date", value=datetime.date.today())
-
     add_clicked = st.form_submit_button("Add match")
 
 if add_clicked:
-    # Validate players (at least one non-empty name provided)
-    if not any([A1, A2, B1, B2]):
+    if not any([a1, a2, b1, b2]):
         st.error("Please enter at least one player name.")
     else:
-        # Convert score strings to ints (empty -> 0)
-        sA = safe_int_from_text(sA_text)
-        sB = safe_int_from_text(sB_text)
+        sA = safe_int_from_text(sa_text)
+        sB = safe_int_from_text(sb_text)
 
-        # Prepare new row: keep score text empty if user left blank (so UI shows empty)
-        new_row = {
+        # Store blank string in CSV if user left the score blank
+        scoreA_csv = "" if sa_text.strip() == "" else str(sA)
+        scoreB_csv = "" if sb_text.strip() == "" else str(sB)
+
+        new = {
             "date": match_date.strftime("%Y-%m-%d"),
-            "playerA1": A1, "playerA2": A2,
-            "playerB1": B1, "playerB2": B2,
-            "scoreA": "" if str(sA_text).strip() == "" else str(sA),
-            "scoreB": "" if str(sB_text).strip() == "" else str(sB)
+            "playerA1": a1, "playerA2": a2,
+            "playerB1": b1, "playerB2": b2,
+            "scoreA": scoreA_csv, "scoreB": scoreB_csv
         }
+        matches = pd.concat([matches, pd.DataFrame([new])], ignore_index=True)
 
-        # Append to matches DF
-        matches = pd.concat([matches, pd.DataFrame([new_row])], ignore_index=True)
-
-        # update numeric helper columns before saving
+        # update numeric helper columns
         matches["scoreA_num"] = pd.to_numeric(matches.get("scoreA", ""), errors="coerce").fillna(0).astype(int)
         matches["scoreB_num"] = pd.to_numeric(matches.get("scoreB", ""), errors="coerce").fillna(0).astype(int)
 
-        # Save matches.csv (write only the canonical MATCHES_COLS order)
-        new_matches_sha = github_put_csv(MATCHES_PATH, matches[MATCHES_COLS], matches_sha, "Add match")
-        matches_sha = new_matches_sha  # update sha
+        # Save matches.csv (fetch latest sha on each write)
+        try:
+            # get latest sha fresh to reduce conflicts
+            _, current_sha = github_get_csv(MATCHES_PATH, default_columns=MATCHES_COLS)
+            matches_sha = github_put_csv(MATCHES_PATH, matches[MATCHES_COLS], current_sha, "Add match")
+        except Exception as e:
+            st.error("Failed to save matches to GitHub.")
+            st.stop()
 
-        # Recompute ratings + player stats by replaying matches in chronological order
+        st.success("Match saved — now updating ratings...")
+
+        # Recompute all ratings & stats by replaying matches in chronological order
+        # Parse date column and sort; if dates invalid, use current order
+        m_copy = matches.copy()
+        m_copy["date_parsed"] = pd.to_datetime(m_copy["date"], errors="coerce")
+        if m_copy["date_parsed"].isna().all():
+            m_sorted = m_copy.reset_index(drop=True)
+        else:
+            m_sorted = m_copy.sort_values("date_parsed").reset_index(drop=True)
+
         ratings_replay = {}
         stats_replay = {}
 
-        matches_sorted = matches.copy()
-        matches_sorted["date_parsed"] = pd.to_datetime(matches_sorted["date"], errors="coerce")
-        # if no valid dates, keep file order
-        if matches_sorted["date_parsed"].isnull().all():
-            matches_sorted = matches_sorted.reset_index(drop=True)
-        else:
-            matches_sorted = matches_sorted.sort_values("date_parsed").reset_index(drop=True)
-
-        for _, row in matches_sorted.iterrows():
+        for _, row in m_sorted.iterrows():
             pA1 = normalize(row.get("playerA1", ""))
             pA2 = normalize(row.get("playerA2", ""))
             pB1 = normalize(row.get("playerB1", ""))
@@ -207,17 +191,17 @@ if add_clicked:
 
             # initialize players
             for p in [pA1, pA2, pB1, pB2]:
-                if p and p not in ratings_replay:
-                    ratings_replay[p] = 1500.0
-                if p and p not in stats_replay:
-                    stats_replay[p] = {"wins": 0, "losses": 0, "matches": 0}
+                if not p:
+                    continue
+                ratings_replay.setdefault(p, 1500.0)
+                stats_replay.setdefault(p, {"wins": 0, "losses": 0, "matches": 0})
 
             # increment matches
             for p in [pA1, pA2, pB1, pB2]:
                 if p:
                     stats_replay[p]["matches"] += 1
 
-            # assign wins/losses
+            # update wins/losses (ties treated as B win — consistent with previous logic)
             if scA > scB:
                 if pA1: stats_replay[pA1]["wins"] += 1
                 if pA2: stats_replay[pA2]["wins"] += 1
@@ -232,110 +216,95 @@ if add_clicked:
             # update elo
             ratings_replay = update_elo(pA1, pA2, pB1, pB2, scA, scB, ratings_replay)
 
-        # Build ratings_df from replayed state
-        ratings_rows = []
+        # Build ratings_df and save
+        rows = []
         for p, r in ratings_replay.items():
             st_w = stats_replay.get(p, {}).get("wins", 0)
             st_l = stats_replay.get(p, {}).get("losses", 0)
             st_m = stats_replay.get(p, {}).get("matches", 0)
-            ratings_rows.append({
-                "player": p,
-                "rating": round(r, 2),
-                "wins": int(st_w),
-                "losses": int(st_l),
-                "matches": int(st_m)
-            })
+            rows.append({"player": p, "rating": round(r,2), "wins": int(st_w), "losses": int(st_l), "matches": int(st_m)})
+        ratings_df = pd.DataFrame(rows).sort_values("rating", ascending=False).reset_index(drop=True)
 
-        ratings_df = pd.DataFrame(ratings_rows).sort_values("rating", ascending=False).reset_index(drop=True)
+        try:
+            _, current_ratings_sha = github_get_csv(RATINGS_PATH, default_columns=RATINGS_COLS)
+            ratings_sha = github_put_csv(RATINGS_PATH, ratings_df[RATINGS_COLS], current_ratings_sha, "Update ratings")
+        except Exception:
+            st.error("Failed to save ratings to GitHub.")
+            st.stop()
 
-        # Save ratings.csv (update or create)
-        new_ratings_sha = github_put_csv(RATINGS_PATH, ratings_df[RATINGS_COLS], ratings_sha, "Update ratings")
-        ratings_sha = new_ratings_sha
+        # refresh local ratings and matches helpers
+        ratings = {r["player"]: float(r["rating"]) for _, r in ratings_df.iterrows()}
+        player_stats = {r["player"]: {"wins": int(r["wins"]), "losses": int(r["losses"]), "matches": int(r["matches"])} for _, r in ratings_df.iterrows()}
 
-        # Update in-memory convenience structures
-        ratings = {row["player"]: float(row["rating"]) for _, row in ratings_df.iterrows()}
-        player_stats = {row["player"]: {"wins": int(row["wins"]), "losses": int(row["losses"]), "matches": int(row["matches"])} for _, row in ratings_df.iterrows()}
-
-        st.success("Match added and ratings updated. (Score inputs were cleared.)")
+        # reload matches to ensure fresh state
+        matches, matches_sha = github_get_csv(MATCHES_PATH, default_columns=MATCHES_COLS)
+        for c in MATCHES_COLS:
+            if c not in matches.columns:
+                matches[c] = ""
+        matches["scoreA_num"] = pd.to_numeric(matches.get("scoreA",""), errors="coerce").fillna(0).astype(int)
+        matches["scoreB_num"] = pd.to_numeric(matches.get("scoreB",""), errors="coerce").fillna(0).astype(int)
 
 # ------------------------
-# Prepare matches for display (safe)
+# Prepare matches for display
 # ------------------------
 for c in MATCHES_COLS:
     if c not in matches.columns:
         matches[c] = ""
 
 matches = matches.reset_index(drop=True)
-matches["scoreA_num"] = pd.to_numeric(matches.get("scoreA", ""), errors="coerce").fillna(0).astype(int)
-matches["scoreB_num"] = pd.to_numeric(matches.get("scoreB", ""), errors="coerce").fillna(0).astype(int)
+matches["scoreA_num"] = pd.to_numeric(matches.get("scoreA",""), errors="coerce").fillna(0).astype(int)
+matches["scoreB_num"] = pd.to_numeric(matches.get("scoreB",""), errors="coerce").fillna(0).astype(int)
 
-# safe parse date column into date_parsed
-def parse_date_column(df):
+# parse dates safely
+def parse_dates_safe(df):
+    df = df.copy()
     if "date" in df.columns:
         df["date_parsed"] = pd.to_datetime(df["date"], errors="coerce")
-        # if all invalid => fallback to synthetic dates from index
         if df["date_parsed"].isna().all():
             df["date_parsed"] = pd.to_datetime("1970-01-01") + pd.to_timedelta(df.index, unit="D")
     else:
         df["date_parsed"] = pd.to_datetime("1970-01-01") + pd.to_timedelta(df.index, unit="D")
     return df
 
-matches = parse_date_column(matches)
+matches = parse_dates_safe(matches)
 
 # ------------------------
 # Filters and Match History display
 # ------------------------
 st.header("📜 Match History & Filters")
 
-# ALWAYS ensure date_parsed column exists BEFORE filtering
-if "date_parsed" not in matches.columns:
-    matches["date_parsed"] = pd.to_datetime(matches["date"], errors="coerce")
-    matches["date_parsed"] = matches["date_parsed"].fillna(
-        pd.Timestamp("1970-01-01") + pd.to_timedelta(matches.index, unit="D")
-    )
+min_date = matches["date_parsed"].min()
+max_date = matches["date_parsed"].max()
+if pd.isna(min_date):
+    min_date = datetime.date.today()
+if pd.isna(max_date):
+    max_date = datetime.date.today()
 
-# Safe defaults
-if matches["date_parsed"].isnull().all():
-    matches["date_parsed"] = pd.Timestamp("1970-01-01") + pd.to_timedelta(matches.index, unit="D")
-
-min_date = matches["date_parsed"].min().date()
-max_date = matches["date_parsed"].max().date()
-
-col1, col2 = st.columns(2)
-start_date = col1.date_input("From", min_date)
-end_date = col2.date_input("To", max_date)
+col1, col2, col3 = st.columns([2,2,1])
+with col1:
+    start_date = st.date_input("From", value=min_date.date() if hasattr(min_date, "date") else datetime.date.today())
+with col2:
+    end_date = st.date_input("To", value=max_date.date() if hasattr(max_date, "date") else datetime.date.today())
+with col3:
+    if st.button("Apply filter"):
+        pass
 
 start_dt = pd.to_datetime(start_date)
 end_dt = pd.to_datetime(end_date) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
+filtered = matches[(matches["date_parsed"] >= start_dt) & (matches["date_parsed"] <= end_dt)]
 
-# Filtering
-filtered = matches[
-    (matches["date_parsed"] >= start_dt) &
-    (matches["date_parsed"] <= end_dt)
-].copy()
+cols_to_show = [c for c in ["date","playerA1","playerA2","playerB1","playerB2","scoreA","scoreB","scoreA_num","scoreB_num"] if c in filtered.columns]
 
-# Columns that actually exist
-cols_to_show = [c for c in ["date","playerA1","playerA2","playerB1","playerB2","scoreA","scoreB"]
-                if c in filtered.columns]
-
-# Only sort if column exists
-if "date_parsed" in filtered.columns:
-    filtered = filtered.sort_values("date_parsed", ascending=False)
-
-st.subheader(f"Showing {len(filtered)} matches from {start_date} to {end_date}")
-st.dataframe(filtered[cols_to_show].reset_index(drop=True))
-
-# Only sort by date_parsed if it exists in filtered
-if "date_parsed" in filtered.columns:
-    st.dataframe(filtered[cols_to_show].sort_values("date_parsed", ascending=False).reset_index(drop=True))
-else:
-    st.dataframe(filtered[cols_to_show].reset_index(drop=True))
+st.subheader(f"Showing {len(filtered)} matches between {start_date} and {end_date}")
+# ensure date_parsed exists before sorting
+if "date_parsed" not in filtered.columns:
+    filtered = parse_dates_safe(filtered)
+st.dataframe(filtered[cols_to_show].sort_values("date_parsed", ascending=False).reset_index(drop=True))
 
 # ------------------------
-# Player individual stats (derived from ratings_df)
+# Player individual stats
 # ------------------------
 st.header("📊 Player Statistics (individual)")
-
 if ratings_df.empty:
     st.info("No player stats yet.")
 else:
@@ -360,7 +329,7 @@ medals = ["🥇 #1", "🥈 #2", "🥉 #3"]
 for i in range(3):
     if i < len(top):
         row = top.loc[i]
-        cols[i].metric(f"{medals[i]} {row['player']}", f"{float(row['rating']):.2f}", delta=f"W:{int(row['wins'])}")
+        cols[i].metric(f"{medals[i]} {row['player']}", f"{float(row['rating']):.2f}", delta=f"W:{int(row.get('wins',0))}")
     else:
         cols[i].write("—")
 
@@ -368,7 +337,6 @@ for i in range(3):
 # Rating trend (replay matches)
 # ------------------------
 st.header("📈 Rating Trend (replay matches)")
-
 players_all = sorted(ratings_df["player"].unique()) if not ratings_df.empty else []
 selected = st.multiselect("Select players to plot", players_all, default=players_all[:3])
 
@@ -376,19 +344,18 @@ def build_rating_timeline(selected_players):
     timeline_rows = []
     if matches.empty:
         return pd.DataFrame(columns=["date","player","rating"])
-    matches_sorted = matches.copy().sort_values("date_parsed").reset_index(drop=True)
+    ms = matches.copy().sort_values("date_parsed").reset_index(drop=True)
     current = {}
-    for _, row in matches_sorted.iterrows():
-        pA1 = normalize(row["playerA1"]); pA2 = normalize(row["playerA2"])
-        pB1 = normalize(row["playerB1"]); pB2 = normalize(row["playerB2"])
-        sA = safe_int_from_text(row.get("scoreA",""))
-        sB = safe_int_from_text(row.get("scoreB",""))
-        for p in [pA1, pA2, pB1, pB2]:
+    for _, row in ms.iterrows():
+        pA1 = normalize(row.get("playerA1","")); pA2 = normalize(row.get("playerA2",""))
+        pB1 = normalize(row.get("playerB1","")); pB2 = normalize(row.get("playerB2",""))
+        sA = safe_int_from_text(row.get("scoreA","")); sB = safe_int_from_text(row.get("scoreB",""))
+        for p in [pA1,pA2,pB1,pB2]:
             if p and p not in current:
                 current[p] = 1500.0
-        current = update_elo(pA1, pA2, pB1, pB2, sA, sB, current)
+        current = update_elo(pA1,pA2,pB1,pB2,sA,sB,current)
         for p in selected_players:
-            timeline_rows.append({"date": row["date_parsed"], "player": p, "rating": current.get(p, 1500.0)})
+            timeline_rows.append({"date": row["date_parsed"], "player": p, "rating": float(current.get(p,1500.0))})
     if not timeline_rows:
         return pd.DataFrame(columns=["date","player","rating"])
     df_t = pd.DataFrame(timeline_rows).sort_values(["player","date"]).reset_index(drop=True)
@@ -405,25 +372,25 @@ if selected:
         ).interactive()
         st.altair_chart(chart, use_container_width=True)
     else:
-        st.info("No timeline data to show yet.")
+        st.info("No timeline data to show.")
 else:
-    st.info("Pick players to plot rating trend.")
+    st.info("Select players to show rating trend.")
 
 # ------------------------
 # Prediction
 # ------------------------
 st.header("🔮 Predict Match Outcome")
-pcol1, pcol2 = st.columns(2)
-pA1 = normalize(pcol1.text_input("Team A - P1", value=""))
-pA2 = normalize(pcol1.text_input("Team A - P2", value=""))
-pB1 = normalize(pcol2.text_input("Team B - P1", value=""))
-pB2 = normalize(pcol2.text_input("Team B - P2", value=""))
+pc1, pc2 = st.columns(2)
+ppA1 = normalize(pc1.text_input("Team A - P1", value=""))
+ppA2 = normalize(pc1.text_input("Team A - P2", value=""))
+ppB1 = normalize(pc2.text_input("Team B - P1", value=""))
+ppB2 = normalize(pc2.text_input("Team B - P2", value=""))
 
 if st.button("Predict"):
-    if all(x for x in [pA1,pA2,pB1,pB2]) and all(x in ratings for x in [pA1,pA2,pB1,pB2]):
-        prob = predict_win_probability(ratings, pA1, pA2, pB1, pB2)
+    if all(pp in ratings for pp in [ppA1,ppA2,ppB1,ppB2]) and all([ppA1,ppA2,ppB1,ppB2]):
+        prob = predict_win_probability(ratings, ppA1, ppA2, ppB1, ppB2)
         st.success(f"Team A win probability: **{prob*100:.2f}%**")
     else:
-        st.error("Make sure all four players exist and have ratings.")
+        st.error("Make sure all four players exist with ratings.")
 
 st.write("App synced with GitHub CSV files.")
