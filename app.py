@@ -9,15 +9,12 @@ import altair as alt
 import datetime
 import pytz
 from elo import update_elo, predict_win_probability
-# ----------------------------------------------------------
-# 🔐  LOGIN SYSTEM (Persistent using st.session_state)
-# ----------------------------------------------------------
 
 # 1️⃣ Initialize login state once
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
-# 2️⃣ Show login page if NOT logged in
+# 2️⃣ If NOT logged in → show login page
 if not st.session_state.logged_in:
     st.title("🔐 Login Required")
 
@@ -25,16 +22,17 @@ if not st.session_state.logged_in:
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        if (username == st.secrets["LOGIN"]["APP_USERNAME"] and
-            password == st.secrets["LOGIN"]["APP_PASSWORD"]):
-            st.session_state.logged_in = True      # <--- Persistent
+        if (
+            username == st.secrets["LOGIN"]["APP_USERNAME"]
+            and password == st.secrets["LOGIN"]["APP_PASSWORD"]
+        ):
+            st.session_state.logged_in = True       # persistent
             st.success("Login success! Loading app...")
-            st.rerun()                              # <--- IMPORTANT
+            st.rerun()                              # reload app AFTER login
         else:
             st.error("Invalid username or password")
 
-    st.stop()  # ⛔ Prevent app from loading if not logged in
-    # ----------------------------------------------------------
+    st.stop()  # 🚨 prevents rest of app from running
 # 🔓 LOGOUT BUTTON (placed at bottom)
 # ----------------------------------------------------------
 st.markdown("---")
