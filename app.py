@@ -9,7 +9,29 @@ import altair as alt
 from datetime import datetime
 import pytz
 from elo import update_elo, predict_win_probability
+# ------------------------
+# Hide Streamlit UI elements
+# ------------------------
+hide_streamlit_style = """
+    <style>
+    /* Hide Main Menu (≡) */
+    #MainMenu {visibility: hidden;}
 
+    /* Hide footer (Made with Streamlit) */
+    footer {visibility: hidden;}
+
+    /* Hide GitHub repo link inside header if visible */
+    header {visibility: hidden;}
+
+    /* Reduce top padding to remove blank space */
+    .block-container {
+        padding-top: 1rem;
+    }
+    </style>
+"""
+
+import streamlit as st
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 IST = pytz.timezone("Asia/Kolkata")
 today_ist = datetime.now(IST).date()
 # -------------------------
