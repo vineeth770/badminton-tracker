@@ -9,12 +9,17 @@ import altair as alt
 import datetime
 import pytz
 from elo import update_elo, predict_win_probability
+from streamlit_cookies_manager import EncryptedCookieManager
 
-# 1️⃣ Initialize login state once
+cookies = EncryptedCookieManager(prefix="badminton_app_", password="any-random-secret-key")
+
+if not cookies.ready():
+    st.stop()
+
+# Load login state from cookie
 if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
+    st.session_state.logged_in = cookies.get("logged_in") == "true"
 
-# 2️⃣ If NOT logged in → show login page
 if not st.session_state.logged_in:
     st.title("🔐 Login Required")
 
@@ -22,18 +27,20 @@ if not st.session_state.logged_in:
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        if (
-            username == st.secrets["LOGIN"]["APP_USERNAME"]
-            and password == st.secrets["LOGIN"]["APP_PASSWORD"]
-        ):
-            st.session_state.logged_in = True       # persistent
-            st.success("Login success! Loading app...")
-            st.rerun()                              # reload app AFTER login
-        else:
-            st.error("Invalid username or password")
+        if (username == st.secrets["LOGIN"]["APP_USERNAME"] and
+            password == st.secrets["LOGIN"]["APP_PASSWORD"]):
 
-    st.stop()  # 🚨 prevents rest of app from running
-# ------------------------
+            st.session_state.logged_in = True
+            cookies.set("logged_in", "true")
+            cookies.save()
+
+            st.success("Login successful!")
+            st.rerun()
+        else:
+            st.error("Invalid login")
+
+    st.stop()
+
 # Hide Streamlit UI elements
 # ------------------------
 hide_streamlit_style = """
@@ -514,10 +521,10 @@ with st.expander("🔮 Predict Match Outcome", expanded=False):
         else:
             st.error("Ensure all four players have ratings (check ratings.csv).")
 
-st.info("App synced with GitHub CSV files.")
-
-st.markdown("---")
+#st.info("App synced with GitHub CSV files.")
 if st.button("Logout"):
     st.session_state.logged_in = False
+    cookies.set("logged_in", "false")
+    cookies.save()
     st.success("Logged out!")
     st.rerun()
