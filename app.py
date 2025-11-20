@@ -23,8 +23,8 @@ creds = Credentials.from_service_account_info(
 client = gspread.authorize(creds)
 
 # Load tabs by URL
-matches_sheet = client.open_by_url(st.secrets["sheets"]["matches"]).sheet1
-players_sheet = client.open_by_url(st.secrets["sheets"]["players"]).sheet1
+matches_sheet = client.open_by_url(st.secrets["sheet_matches"]).sheet1
+players_sheet = client.open_by_url(st.secrets["sheet_players"]).sheet1
 
 
 def load_matches():
