@@ -6,9 +6,12 @@ import requests
 import base64
 from io import StringIO
 import altair as alt
-import datetime
+from datetime import datetime
+import pytz
 from elo import update_elo, predict_win_probability
 
+IST = pytz.timezone("Asia/Kolkata")
+today_ist = datetime.now(IST).date()
 # -------------------------
 # Page config & small CSS for mobile friendliness
 # -------------------------
