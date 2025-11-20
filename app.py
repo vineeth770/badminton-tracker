@@ -200,8 +200,8 @@ with st.expander("➕ Team & Score", expanded=True):
         A2 = normalize(right.text_input("Team A - Player 2", value=""))
         B1 = normalize(left.text_input("Team B - Player 1", value=""))
         B2 = normalize(right.text_input("Team B - Player 2", value=""))
-        sA_text = left.text_input("Score A (leave empty = 0)", value="", key="sa")
-        sB_text = right.text_input("Score B (leave empty = 0)", value="", key="sb")
+        sA_text = left.text_input("Score A ", value="", key="sa")
+        sB_text = right.text_input("Score B ", value="", key="sb")
         match_date = right.date_input("Match date", value=today_ist)
         submitted = st.form_submit_button("Save Match")
 
