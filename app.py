@@ -139,22 +139,27 @@ if not ratings_df.empty:
             "matches": int(r["matches"])
         }
 
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
+# ------------------------
+# LOGIN PAGE
+# ------------------------
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
 
-if not st.session_state.logged_in:
+if not st.session_state.authenticated:
     st.title("🔐 Login")
 
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        if username == st.secrets["APP_USERNAME"] and password == st.secrets["APP_PASSWORD"]:
-            st.session_state.logged_in = True
-            st.success("Login successful!")
-            st.rerun()       # <-- FIXED HERE
+        if (
+            username == st.secrets["LOGIN"]["APP_USERNAME"]
+            and password == st.secrets["LOGIN"]["APP_PASSWORD"]
+        ):
+            st.session_state.authenticated = True
+            st.experimental_rerun()
         else:
-            st.error("Invalid credentials.")
+            st.error("Incorrect username or password.")
     st.stop()
 # Layout: collapsible sections (good for mobile)
 # -------------------------
