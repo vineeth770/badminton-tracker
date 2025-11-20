@@ -540,9 +540,7 @@ with st.expander("🔮 Predict Match Outcome", expanded=False):
             st.error("Ensure all four players have ratings (check ratings.csv).")
 
 #st.info("App synced with GitHub CSV files.")
-st.markdown("---")
-if st.button("Logout"):
-    st.session_state.logged_in = False
-    # Remove query param → logs user out permanently
-    st.query_params.clear()
+def logout():
+    st.session_state.auth_token = None
+    st.query_params(token=None)
     st.rerun()
