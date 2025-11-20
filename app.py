@@ -33,14 +33,6 @@ if not st.session_state.logged_in:
             st.error("Invalid username or password")
 
     st.stop()  # 🚨 prevents rest of app from running
-# 🔓 LOGOUT BUTTON (placed at bottom)
-# ----------------------------------------------------------
-st.markdown("---")
-if st.button("Logout"):
-    st.session_state.logged_in = False
-    st.success("Logged out!")
-    st.rerun()
-
 # ------------------------
 # Hide Streamlit UI elements
 # ------------------------
@@ -523,3 +515,9 @@ with st.expander("🔮 Predict Match Outcome", expanded=False):
             st.error("Ensure all four players have ratings (check ratings.csv).")
 
 st.info("App synced with GitHub CSV files.")
+
+st.markdown("---")
+if st.button("Logout"):
+    st.session_state.logged_in = False
+    st.success("Logged out!")
+    st.rerun()
