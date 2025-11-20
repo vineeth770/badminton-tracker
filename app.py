@@ -343,7 +343,7 @@ with st.expander("📊 Player Statistics & Summaries", expanded=True):
         st.dataframe(stats_view.reset_index(drop=True))
 
         # Weekly / Monthly auto-summary
-        now = pd.to_datetime(datetime.date.today())
+        now = pd.to_datetime(datetime.date.today_ist())
         last7 = matches[matches["date_parsed"] >= (now - pd.Timedelta(days=7))]
         last30 = matches[matches["date_parsed"] >= (now - pd.Timedelta(days=30))]
 
