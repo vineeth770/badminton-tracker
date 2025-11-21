@@ -726,65 +726,6 @@ with st.expander("🏆 Top Players", expanded=False):
             cols[i].write("—")
 
 st.markdown("---")
-
-# -------------------------------------------------
-# 📈 Rating trend
-# -------------------------------------------------
-with st.expander("📈 Rating Trend (replay matches)", expanded=False):
-    players_all = sorted(ratings_df["player"].unique()) if not ratings_df.empty else []
-    selected = st.multiselect("Select players to plot", players_all, default=players_all[:3])
-
-    def build_rating_timeline(selected_players):
-        timeline_rows = []
-        if matches.empty:
-            return pd.DataFrame(columns=["date", "player", "rating"])
-        matches_sorted = matches.copy().sort_values("date_parsed").reset_index(drop=True)
-        current = {}
-        for _, row in matches_sorted.iterrows():
-            pA1 = normalize(row["playerA1"])
-            pA2 = normalize(row["playerA2"])
-            pB1 = normalize(row["playerB1"])
-            pB2 = normalize(row["playerB2"])
-            sA = safe_int_from_text(row.get("scoreA", ""))
-            sB = safe_int_from_text(row.get("scoreB", ""))
-            for p in [pA1, pA2, pB1, pB2]:
-                if p and p not in current:
-                    current[p] = 1500.0
-            current = update_elo(pA1, pA2, pB1, pB2, sA, sB, current)
-            for p in selected_players:
-                timeline_rows.append(
-                    {"date": row["date_parsed"], "player": p, "rating": current.get(p, 1500.0)}
-                )
-        if not timeline_rows:
-            return pd.DataFrame(columns=["date", "player", "rating"])
-        return (
-            pd.DataFrame(timeline_rows)
-            .sort_values(["player", "date"])
-            .reset_index(drop=True)
-        )
-
-    if selected:
-        df_t = build_rating_timeline(selected)
-        if not df_t.empty:
-            chart = (
-                alt.Chart(df_t)
-                .mark_line(point=True)
-                .encode(
-                    x=alt.X("date:T", title="Date"),
-                    y=alt.Y("rating:Q", title="Rating"),
-                    color="player:N",
-                    tooltip=["player:N", alt.Tooltip("rating:Q", format=".2f"), "date:T"],
-                )
-                .interactive()
-            )
-            st.altair_chart(chart, use_container_width=True)
-        else:
-            st.info("No timeline data yet.")
-    else:
-        st.info("Pick players to plot rating trend.")
-
-st.markdown("---")
-
 # -------------------------------------------------
 # 👤 Player Profile
 # -------------------------------------------------
