@@ -229,10 +229,7 @@ if save_clicked:
         # Convert scores AFTER validation
         sA = safe_int_from_text(sA_text)
         sB = safe_int_from_text(sB_text)
-
-
-            # Build new row; store score columns as empty string if user left blank
-            new_row = {
+        new_row = {
                 "date": today_ist.strftime("%Y-%m-%d"),
                 "playerA1": A1, "playerA2": A2,
                 "playerB1": B1, "playerB2": B2,
