@@ -216,15 +216,20 @@ with st.expander("➕ Add Match (Team names + Scores)", expanded=True):
         set_rematch_from_last()
 
     # Save match logic
-    if save_clicked:
-        if not any([A1, A2, B1, B2]):
-            st.error("Please enter at least one player name before saving.")
-        elif sA_text.strip() == "" or sB_text.strip() == "":
-        st.error("Please enter BOTH score A and score B before saving.")
-        else:
-            # Convert scores
-            sA = safe_int_from_text(sA_text)
-            sB = safe_int_from_text(sB_text)
+if save_clicked:
+    # 1️⃣ Check if players entered
+    if not any([A1, A2, B1, B2]):
+        st.error("Please enter at least one player name before saving.")
+
+    # 2️⃣ Check if BOTH score fields are filled
+    elif sA_text.strip() == "" or sB_text.strip() == "":
+        st.error("Please enter BOTH scores before saving.")
+
+    else:
+        # Convert scores AFTER validation
+        sA = safe_int_from_text(sA_text)
+        sB = safe_int_from_text(sB_text)
+
 
             # Build new row; store score columns as empty string if user left blank
             new_row = {
