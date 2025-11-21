@@ -11,18 +11,24 @@ import pytz
 from elo import update_elo, predict_win_probability
 
 # -------------------------
-# Basic page config + small mobile CSS
+# Page + mobile CSS
 # -------------------------
 st.set_page_config(page_title="Badminton Doubles Tracker", layout="wide")
+
 st.markdown(
     """
     <style>
     /* compact layout for mobile */
-    @media (max-width: 600px) {
+    @media (max-width: 700px) {
         .block-container { padding: 0.5rem; }
         .streamlit-expanderHeader { font-size: 16px; }
+        .stTextInput > label { font-size: 14px; }
     }
-    .small { font-size:12px; color: #666; }
+    /* smaller text for summaries */
+    .small { font-size:12px; color: #999; }
+    /* hide streamlit footer/menu for cleaner UI */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
     </style>
     """,
     unsafe_allow_html=True,
@@ -35,7 +41,7 @@ IST = pytz.timezone("Asia/Kolkata")
 today_ist = datetime.datetime.now(IST).date()
 
 # -------------------------
-# Simple session login (credentials stored in st.secrets under [LOGIN])
+# SIMPLE SESSION LOGIN
 # -------------------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -53,11 +59,11 @@ if not st.session_state.logged_in:
             st.stop()
         if ok_user and ok_pass:
             st.session_state.logged_in = True
-            st.success("Login successful — loading app...")
-            st.rerun()
+            st.success("Login successful — loading app…")
+            st.experimental_rerun()
         else:
-            st.error("Invalid username or password.")
-    st.stop()  # stop if not logged in
+            st.error("Invalid username or password")
+    st.stop()  # prevent rest of app showing until logged in
 
 # -------------------------
 # GitHub CSV helpers (read/write)
@@ -67,6 +73,7 @@ OWNER = st.secrets.get("REPO_OWNER")
 REPO = st.secrets.get("REPO_NAME")
 MATCHES_PATH = st.secrets.get("MATCHES_CSV", "matches.csv")
 RATINGS_PATH = st.secrets.get("RATINGS_CSV", "ratings.csv")
+
 API_BASE = f"https://api.github.com/repos/{OWNER}/{REPO}/contents"
 headers = {"Authorization": f"token {GITHUB_TOKEN}"} if GITHUB_TOKEN else {}
 
@@ -80,6 +87,7 @@ def github_get_csv(path, default_columns=None):
         df = pd.read_csv(StringIO(content))
         return df, info.get("sha")
     elif resp.status_code == 404:
+        # file not found -> return empty DF with columns
         if default_columns:
             return pd.DataFrame(columns=default_columns), None
         return pd.DataFrame(), None
@@ -121,7 +129,7 @@ def safe_int_from_text(s):
         return 0
 
 # -------------------------
-# Load CSVs from GitHub (safe defaults)
+# Load CSVs (safe defaults)
 # -------------------------
 MATCHES_COLS = ["date","playerA1","playerA2","playerB1","playerB2","scoreA","scoreB"]
 RATINGS_COLS = ["player","rating","wins","losses","matches"]
@@ -129,7 +137,7 @@ RATINGS_COLS = ["player","rating","wins","losses","matches"]
 matches, matches_sha = github_get_csv(MATCHES_PATH, default_columns=MATCHES_COLS)
 ratings_df, ratings_sha = github_get_csv(RATINGS_PATH, default_columns=RATINGS_COLS)
 
-# Ensure columns exist
+# ensure columns exist
 for c in MATCHES_COLS:
     if c not in matches.columns:
         matches[c] = ""
@@ -137,23 +145,23 @@ for c in RATINGS_COLS:
     if c not in ratings_df.columns:
         ratings_df[c] = []
 
-# Normalize player names & dates
+# normalize player names & date column text
 for c in ["playerA1","playerA2","playerB1","playerB2","date"]:
     if c in matches.columns:
         matches[c] = matches[c].fillna("").astype(str).apply(normalize)
 
-# numeric helper columns (not saved)
+# numeric helpers
 matches["scoreA_num"] = pd.to_numeric(matches["scoreA"], errors="coerce").fillna(0).astype(int)
 matches["scoreB_num"] = pd.to_numeric(matches["scoreB"], errors="coerce").fillna(0).astype(int)
 
-# Ensure ratings_df numeric types
+# ensure ratings types
 if not ratings_df.empty:
     ratings_df["rating"] = pd.to_numeric(ratings_df["rating"], errors="coerce").fillna(1500.0)
     ratings_df["wins"] = pd.to_numeric(ratings_df["wins"], errors="coerce").fillna(0).astype(int)
     ratings_df["losses"] = pd.to_numeric(ratings_df["losses"], errors="coerce").fillna(0).astype(int)
     ratings_df["matches"] = pd.to_numeric(ratings_df["matches"], errors="coerce").fillna(0).astype(int)
 
-# ratings dict and stats (fallback to ratings.csv if present)
+# build ratings dict fallback
 ratings = {}
 player_stats = {}
 if not ratings_df.empty:
@@ -163,14 +171,14 @@ if not ratings_df.empty:
         player_stats[pname] = {"wins": int(r["wins"]), "losses": int(r["losses"]), "matches": int(r["matches"])}
 
 # -------------------------
-# UI header + small info
+# App header
 # -------------------------
 st.title("🏸 Badminton Doubles Tracker")
-st.write("You are logged in. Use the sections below to add matches, view stats and manage ratings.")
+st.write("Logged in.")
 st.markdown("---")
 
 # -------------------------
-# REMATCH helper: store last-match players in session for rematch autofill
+# Rematch helper (store names in session)
 # -------------------------
 if "rematch_defaults" not in st.session_state:
     st.session_state.rematch_defaults = {"A1":"", "A2":"", "B1":"", "B2":""}
@@ -186,68 +194,68 @@ def set_rematch_from_last():
         }
     else:
         st.session_state.rematch_defaults = {"A1":"", "A2":"", "B1":"", "B2":""}
-    st.rerun()
+    # no rerun here; form uses session defaults and will reflect next run
 
 # -------------------------
-# Add Match expander (collapsible) with Rematch button
+# ADD MATCH (expander) — Save + Rematch buttons
 # -------------------------
-with st.expander("➕ Add Match (Team names + Scores)", expanded=True):
-    # defaults from session (rematch)
-    df = st.session_state.rematch_defaults
-    # form: clear_on_submit True resets inputs after successful submit
+with st.expander("➕ Add Match", expanded=True):
+    defaults = st.session_state.rematch_defaults
+    # use clear_on_submit True so inputs are cleared after successful save
     with st.form("add_match_form", clear_on_submit=True):
         left, right = st.columns([1,1])
-        A1 = normalize(left.text_input("Team A - Player 1", value=df.get("A1","")))
-        A2 = normalize(right.text_input("Team A - Player 2", value=df.get("A2","")))
-        B1 = normalize(left.text_input("Team B - Player 1", value=df.get("B1","")))
-        B2 = normalize(right.text_input("Team B - Player 2", value=df.get("B2","")))
-        # text_inputs so they show empty by default
-        sA_text = left.text_input("Score A", value="", key="scoreA_input")
-        sB_text = right.text_input("Score B", value="", key="scoreB_input")
-        # show today's date for info (auto used when saving)
-        st.write(f"Match date: **{today_ist.strftime('%Y-%m-%d')}**", unsafe_allow_html=True)
+        A1 = normalize(left.text_input("Team A - Player 1", value=defaults.get("A1","")))
+        A2 = normalize(right.text_input("Team A - Player 2", value=defaults.get("A2","")))
+        B1 = normalize(left.text_input("Team B - Player 1", value=defaults.get("B1","")))
+        B2 = normalize(right.text_input("Team B - Player 2", value=defaults.get("B2","")))
+        # keep score fields as text so they appear empty by default
+        sA_text = left.text_input("Score A (required)", value="", key="sa_input")
+        sB_text = right.text_input("Score B (required)", value="", key="sb_input")
+        st.write(f"Match date: **{today_ist.strftime('%Y-%m-%d')}**")
+        csave, crem = st.columns([1,1])
+        save_clicked = csave.form_submit_button("Save Match")
+        rematch_clicked = crem.form_submit_button("Rematch")
 
-        col_save, col_rematch = st.columns([1,1])
-        save_clicked = col_save.form_submit_button("Save Match")
-        rematch_clicked = col_rematch.form_submit_button("Rematch")
-
-    # Rematch button logic (fills the four name inputs from last match)
+    # REMATCH logic — fill next-run defaults with last saved match names
     if rematch_clicked:
         set_rematch_from_last()
+        st.success("Rematch names loaded in form. Edit if needed.")
+        st.experimental_rerun()  # reload so form shows new defaults
 
-    # Save match logic
+    # SAVE logic (outside `with st.form` because form_submit_button populated variables after submit)
     if save_clicked:
+        # Validate: require at least one player (but better require at least team names) — we require at least one non-empty player
         if not any([A1, A2, B1, B2]):
             st.error("Please enter at least one player name before saving.")
+        # Require both score fields to be filled (your request)
         elif sA_text.strip() == "" or sB_text.strip() == "":
             st.error("Please enter BOTH scores before saving.")
         else:
-            # Convert scores
+            # convert scores
             sA = safe_int_from_text(sA_text)
             sB = safe_int_from_text(sB_text)
 
-            # Build new row; store score columns as empty string if user left blank
+            # Build new row with today's date (auto)
             new_row = {
                 "date": today_ist.strftime("%Y-%m-%d"),
                 "playerA1": A1, "playerA2": A2,
                 "playerB1": B1, "playerB2": B2,
-                "scoreA": "" if sA_text.strip() == "" else str(sA),
-                "scoreB": "" if sB_text.strip() == "" else str(sB)
+                "scoreA": str(sA),
+                "scoreB": str(sB)
             }
 
+            # append and update helpers
             matches = pd.concat([matches, pd.DataFrame([new_row])], ignore_index=True)
-            # update numeric helpers
             matches["scoreA_num"] = pd.to_numeric(matches["scoreA"], errors="coerce").fillna(0).astype(int)
             matches["scoreB_num"] = pd.to_numeric(matches["scoreB"], errors="coerce").fillna(0).astype(int)
 
-            # Save matches.csv to GitHub
+            # Save to GitHub CSV
             matches_sha = github_put_csv(MATCHES_PATH, matches[MATCHES_COLS], matches_sha, "Add match")
 
-            # Recompute ratings & stats by replaying matches (chronological by date if present)
+            # Recompute ratings & player stats by replaying matches in chronological order
             matches_proc = matches.copy()
             matches_proc["date_parsed"] = pd.to_datetime(matches_proc["date"], errors="coerce")
             if matches_proc["date_parsed"].isna().all():
-                # use file order
                 matches_proc = matches_proc.reset_index(drop=True)
             else:
                 matches_proc = matches_proc.sort_values("date_parsed").reset_index(drop=True)
@@ -286,7 +294,7 @@ with st.expander("➕ Add Match (Team names + Scores)", expanded=True):
 
                 ratings_replay = update_elo(pA1,pA2,pB1,pB2,scA,scB,ratings_replay)
 
-            # Build and save ratings.csv
+            # Build ratings_df and save
             ratings_rows = []
             for p, r in ratings_replay.items():
                 ratings_rows.append({
@@ -299,15 +307,12 @@ with st.expander("➕ Add Match (Team names + Scores)", expanded=True):
             ratings_df = pd.DataFrame(ratings_rows).sort_values("rating", ascending=False).reset_index(drop=True)
             ratings_sha = github_put_csv(RATINGS_PATH, ratings_df[RATINGS_COLS], ratings_sha, "Update ratings")
 
-            # clear rematch defaults so form starts fresh
+            # Clear rematch defaults (so rematch will fill next time from this new saved match if user wants)
             st.session_state.rematch_defaults = {"A1":"", "A2":"", "B1":"", "B2":""}
-
             st.success("Match saved and ratings updated.")
 
-st.markdown("---")
-
 # -------------------------
-# Prepare matches for display: parse date_parsed but DO NOT show it (hidden column)
+# Prepare matches for display: parse date_parsed but keep it hidden (used only for sorting)
 # -------------------------
 def parse_date_column(df):
     df = df.copy()
@@ -320,12 +325,11 @@ def parse_date_column(df):
     return df
 
 matches = parse_date_column(matches)
-# ensure numeric helper columns exist
 matches["scoreA_num"] = pd.to_numeric(matches["scoreA"], errors="coerce").fillna(0).astype(int)
 matches["scoreB_num"] = pd.to_numeric(matches["scoreB"], errors="coerce").fillna(0).astype(int)
 
 # -------------------------
-# Match History & filters (hidden date_parsed used only for sorting)
+# Match History & Filters (expander)
 # -------------------------
 with st.expander("📜 Match History & Filters", expanded=True):
     min_date = matches["date_parsed"].min()
@@ -341,7 +345,7 @@ with st.expander("📜 Match History & Filters", expanded=True):
     with c2:
         end_date = st.date_input("To", value=max_date.date() if hasattr(max_date,"date") else today_ist)
     with c3:
-        st.write("")  # spacer
+        st.write("")
 
     start_dt = pd.to_datetime(start_date)
     end_dt = pd.to_datetime(end_date) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
@@ -351,7 +355,7 @@ with st.expander("📜 Match History & Filters", expanded=True):
 
     st.subheader(f"Showing {len(filtered)} matches between {start_date} and {end_date}")
 
-    # sort using date_parsed but don't display date_parsed
+    # Use date_parsed only for sorting; hide it from display
     if "date_parsed" in filtered.columns:
         display_df = filtered[cols_to_show].assign(_sort=filtered["date_parsed"]).sort_values("_sort", ascending=False).drop(columns=["_sort"])
     else:
@@ -362,7 +366,7 @@ with st.expander("📜 Match History & Filters", expanded=True):
 st.markdown("---")
 
 # -------------------------
-# Player statistics & weekly/monthly summaries
+# Player Stats & summaries
 # -------------------------
 with st.expander("📊 Player Statistics & Summaries", expanded=True):
     if ratings_df.empty:
@@ -375,7 +379,7 @@ with st.expander("📊 Player Statistics & Summaries", expanded=True):
         stats_view = stats_df[["player","rating","matches","wins","losses","Win %"]].sort_values("rating", ascending=False)
         st.dataframe(stats_view.reset_index(drop=True))
 
-        # Weekly / Monthly summary
+        # weekly/monthly summaries
         now = pd.to_datetime(today_ist)
         last7 = matches[matches["date_parsed"] >= (now - pd.Timedelta(days=7))]
         last30 = matches[matches["date_parsed"] >= (now - pd.Timedelta(days=30))]
@@ -414,7 +418,7 @@ with st.expander("📊 Player Statistics & Summaries", expanded=True):
 st.markdown("---")
 
 # -------------------------
-# Top-3 badges
+# Top 3 badges
 # -------------------------
 with st.expander("🏆 Top Players", expanded=True):
     if not ratings_df.empty:
@@ -422,7 +426,7 @@ with st.expander("🏆 Top Players", expanded=True):
     else:
         top = pd.DataFrame(columns=["player","rating","wins"])
     cols = st.columns(3)
-    medals = ["🥇 #1","🥈 #2","🥉 #3"]
+    medals = ["🥇 #1", "🥈 #2", "🥉 #3"]
     for i in range(3):
         if i < len(top):
             row = top.loc[i]
@@ -479,7 +483,7 @@ with st.expander("📈 Rating Trend (replay matches)", expanded=False):
 st.markdown("---")
 
 # -------------------------
-# Player Profile (last 10 matches)
+# Player profile
 # -------------------------
 with st.expander("👤 Player Profile", expanded=False):
     psel = st.selectbox("Choose player", sorted(ratings_df["player"].unique()) if not ratings_df.empty else [])
@@ -531,4 +535,4 @@ st.markdown("---")
 if st.button("Logout"):
     st.session_state.logged_in = False
     st.success("Logged out.")
-    st.rerun()
+    st.experimental_rerun()
