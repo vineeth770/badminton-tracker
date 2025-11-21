@@ -205,7 +205,7 @@ with st.expander("➕ Add Match (Team names + Scores)", expanded=True):
         sA_text = left.text_input("Score A", value="", key="scoreA_input")
         sB_text = right.text_input("Score B", value="", key="scoreB_input")
         # show today's date for info (auto used when saving)
-        st.write(f"Match date (auto): **{today_ist.strftime('%Y-%m-%d')}**", unsafe_allow_html=True)
+        st.write(f"Match date: **{today_ist.strftime('%Y-%m-%d')}**", unsafe_allow_html=True)
 
         col_save, col_rematch = st.columns([1,1])
         save_clicked = col_save.form_submit_button("Save Match")
