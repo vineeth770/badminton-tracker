@@ -202,14 +202,14 @@ with st.expander("➕ Add Match (Team names + Scores)", expanded=True):
         B1 = normalize(left.text_input("Team B - Player 1", value=df.get("B1","")))
         B2 = normalize(right.text_input("Team B - Player 2", value=df.get("B2","")))
         # text_inputs so they show empty by default
-        sA_text = left.text_input("Score A (leave empty = 0)", value="", key="scoreA_input")
-        sB_text = right.text_input("Score B (leave empty = 0)", value="", key="scoreB_input")
+        sA_text = left.text_input("Score A", value="", key="scoreA_input")
+        sB_text = right.text_input("Score B", value="", key="scoreB_input")
         # show today's date for info (auto used when saving)
         st.write(f"Match date (auto): **{today_ist.strftime('%Y-%m-%d')}**", unsafe_allow_html=True)
 
         col_save, col_rematch = st.columns([1,1])
         save_clicked = col_save.form_submit_button("Save Match")
-        rematch_clicked = col_rematch.form_submit_button("Rematch (fill names)")
+        rematch_clicked = col_rematch.form_submit_button("Rematch")
 
     # Rematch button logic (fills the four name inputs from last match)
     if rematch_clicked:
