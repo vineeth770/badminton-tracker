@@ -219,7 +219,9 @@ with st.expander("➕ Add Match (Team names + Scores)", expanded=True):
     if save_clicked:
         if not any([A1, A2, B1, B2]):
             st.error("Please enter at least one player name before saving.")
-        else:
+       elif sA_text.strip() == "" or sB_text.strip() == "":
+        st.error("Please enter BOTH score A and score B before saving.")
+    else:
             # Convert scores
             sA = safe_int_from_text(sA_text)
             sB = safe_int_from_text(sB_text)
