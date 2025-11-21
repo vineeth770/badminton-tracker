@@ -216,45 +216,30 @@ with st.expander("➕ Add Match (Team names + Scores)", expanded=True):
         set_rematch_from_last()
 
     # Save match logic
-# Save match logic
-if save_clicked:
+    if save_clicked:
+        if not any([A1, A2, B1, B2]):
+            st.error("Please enter at least one player name before saving.")
+        else:
+            # Convert scores
+            sA = safe_int_from_text(sA_text)
+            sB = safe_int_from_text(sB_text)
 
-    # 1️⃣ Check if players entered
-    if not any([A1, A2, B1, B2]):
-        st.error("Please enter at least one player name before saving.")
+            # Build new row; store score columns as empty string if user left blank
+            new_row = {
+                "date": today_ist.strftime("%Y-%m-%d"),
+                "playerA1": A1, "playerA2": A2,
+                "playerB1": B1, "playerB2": B2,
+                "scoreA": "" if sA_text.strip() == "" else str(sA),
+                "scoreB": "" if sB_text.strip() == "" else str(sB)
+            }
 
-    # 2️⃣ Check if BOTH score fields are filled
-    elif sA_text.strip() == "" or sB_text.strip() == "":
-        st.error("Please enter BOTH scores before saving.")
+            matches = pd.concat([matches, pd.DataFrame([new_row])], ignore_index=True)
+            # update numeric helpers
+            matches["scoreA_num"] = pd.to_numeric(matches["scoreA"], errors="coerce").fillna(0).astype(int)
+            matches["scoreB_num"] = pd.to_numeric(matches["scoreB"], errors="coerce").fillna(0).astype(int)
 
-    else:
-        # Convert scores AFTER validation
-        sA = safe_int_from_text(sA_text)
-        sB = safe_int_from_text(sB_text)
-
-        # Build new row
-        new_row = {
-            "date": today_ist.strftime("%Y-%m-%d"),
-            "playerA1": A1,
-            "playerA2": A2,
-            "playerB1": B1,
-            "playerB2": B2,
-            "scoreA": str(sA),
-            "scoreB": str(sB)
-        }
-
-        # Add to matches
-        matches = pd.concat([matches, pd.DataFrame([new_row])], ignore_index=True)
-
-        # update numeric helpers
-        matches["scoreA_num"] = pd.to_numeric(matches["scoreA"], errors="coerce").fillna(0).astype(int)
-        matches["scoreB_num"] = pd.to_numeric(matches["scoreB"], errors="coerce").fillna(0).astype(int)
-
-        # Save matches.csv to GitHub
-        matches_sha = github_put_csv(MATCHES_PATH, matches[MATCHES_COLS], matches_sha, "Add match")
-
-        # recompute ratings .... (your existing replay block continues here)
-
+            # Save matches.csv to GitHub
+            matches_sha = github_put_csv(MATCHES_PATH, matches[MATCHES_COLS], matches_sha, "Add match")
 
             # Recompute ratings & stats by replaying matches (chronological by date if present)
             matches_proc = matches.copy()
