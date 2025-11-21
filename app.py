@@ -186,7 +186,7 @@ def set_rematch_from_last():
         }
     else:
         st.session_state.rematch_defaults = {"A1":"", "A2":"", "B1":"", "B2":""}
-    st.experimental_rerun()
+    st.rerun()
 
 # -------------------------
 # Add Match expander (collapsible) with Rematch button
