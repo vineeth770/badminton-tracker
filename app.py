@@ -54,7 +54,7 @@ if not st.session_state.logged_in:
         if ok_user and ok_pass:
             st.session_state.logged_in = True
             st.success("Login successful — loading app...")
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Invalid username or password.")
     st.stop()  # stop if not logged in
