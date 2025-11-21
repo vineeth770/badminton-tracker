@@ -529,4 +529,4 @@ st.markdown("---")
 if st.button("Logout"):
     st.session_state.logged_in = False
     st.success("Logged out.")
-    st.experimental_rerun()
+    st.rerun()
