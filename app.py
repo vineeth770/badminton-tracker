@@ -910,8 +910,66 @@ with st.expander("🔮 Predict Match Outcome", expanded=False):
             st.error("Ensure all four players have ratings (check ratings.csv).")
 
 st.markdown("---")
-
 # -------------------------------------------------
+# -------------------------------------------------
+# ⚡ Quick Player Pick Suggestions
+# -------------------------------------------------
+with st.expander("⚡ Quick Player Pick Suggestions", expanded=False):
+
+    if ratings_df.empty:
+        st.info("Not enough data yet for suggestions.")
+    else:
+        st.subheader("Suggested Teams")
+
+        # === Top Rated Pair ===
+        top2 = ratings_df.sort_values("rating", ascending=False).head(2)
+        if len(top2) == 2:
+            st.markdown("### 🥇 Best Rated Pair")
+            st.write(f"**{top2.iloc[0]['player']} & {top2.iloc[1]['player']}**")
+
+        # === Balanced team ===
+        rd = ratings_df.sort_values("rating", ascending=False)
+        best_a = None
+        best_b = None
+        min_diff = 9999
+
+        players = list(rd["player"])
+
+        for i in range(len(players)):
+            for j in range(i+1, len(players)):
+                p1 = players[i]
+                p2 = players[j]
+                diff = abs(float(rd[rd.player==p1].rating) - float(rd[rd.player==p2].rating))
+                if diff < min_diff:
+                    best_a, best_b = p1, p2
+                    min_diff = diff
+
+        if best_a and best_b:
+            st.markdown("### ⚖️ Most Balanced Pair")
+            st.write(f"**{best_a} & {best_b}** (Rating difference: {min_diff:.1f})")
+
+        # === Hot Streak (last 5 matches) ===
+        last5 = matches.tail(5)
+        if len(last5) > 0:
+            win_count = {}
+            for _, r in last5.iterrows():
+                A1, A2, B1, B2 = r.playerA1, r.playerA2, r.playerB1, r.playerB2
+                sA = safe_int_from_text(r.scoreA)
+                sB = safe_int_from_text(r.scoreB)
+                if sA > sB:
+                    win_count[A1] = win_count.get(A1,0) + 1
+                    win_count[A2] = win_count.get(A2,0) + 1
+                else:
+                    win_count[B1] = win_count.get(B1,0) + 1
+                    win_count[B2] = win_count.get(B2,0) + 1
+
+            hot = sorted(win_count.items(), key=lambda x: x[1], reverse=True)
+            st.markdown("### 🔥 Hot Players (Last 5 matches)")
+            for p, w in hot[:4]:
+                st.write(f"{p}: **{w} wins**")
+
+        st.info("💡 Click a suggestion to fill names manually in Add Match.")
+
 # Logout
 # -------------------------------------------------
 if st.button("Logout"):
