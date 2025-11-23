@@ -374,13 +374,13 @@ def handle_live_point(winner_side: str):
 # Header
 # -------------------------------------------------
 st.title("🏸 Badminton Doubles Tracker")
-st.write("You are logged in. Use **Live Score Mode** for rally-by-rally tracking or **Add Match** for quick entry.")
+st.write("You are logged in. Use **Live Score Mode** or **Add Match** for quick entry.")
 st.markdown("---")
 
 # -------------------------------------------------
 # 🎯 Live Score Mode (rally-by-rally)
 # -------------------------------------------------
-with st.expander("🎯 Live Score Mode (rally-by-rally)", expanded=True):
+with st.expander("🎯 Live Score Mode )", expanded=True):
     if not st.session_state.live_active:
         with st.form("live_setup_form"):
             colA, colB = st.columns(2)
