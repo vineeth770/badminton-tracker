@@ -772,7 +772,6 @@ with st.expander("👤 Player Profile", expanded=False):
 st.markdown("---")
 
 # -------------------------------------------------
-# -------------------------------------------------
 # 🏆 TOURNAMENT MODE
 # -------------------------------------------------
 with st.expander("🏆 Tournament Mode (Round-robin)", expanded=False):
@@ -886,7 +885,7 @@ with st.expander("🏆 Tournament Mode (Round-robin)", expanded=False):
             st.session_state.tournament_active = False
             st.success("Tournament ended. Standings saved (locally in this session).")
             st.rerun()
-
+# -------------------------------------------------
 # 🔮 Predict Match Outcome
 # -------------------------------------------------
 with st.expander("🔮 Predict Match Outcome", expanded=False):
