@@ -380,7 +380,7 @@ st.markdown("---")
 # -------------------------------------------------
 # 🎯 Live Score Mode (rally-by-rally)
 # -------------------------------------------------
-with st.expander("🎯 Live Score Mode )", expanded=True):
+with st.expander("🎯 Live Score Mode ", expanded=True):
     if not st.session_state.live_active:
         with st.form("live_setup_form"):
             colA, colB = st.columns(2)
