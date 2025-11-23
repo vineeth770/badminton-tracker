@@ -789,7 +789,7 @@ with st.expander("🏆 Tournament Mode (Round-robin)", expanded=False):
 
         players_text = st.text_area(
             "Enter player names (one per line)", 
-            placeholder="Vineeth\nRam\nAbhi\nSai"
+            placeholder=""
         )
 
         if st.button("Create Tournament"):
