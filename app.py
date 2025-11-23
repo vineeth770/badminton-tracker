@@ -519,7 +519,7 @@ st.markdown("---")
 # -------------------------------------------------
 # ➕ Add Match (manual entry) with Rematch button
 # -------------------------------------------------
-with st.expander("➕ Add Match (Team names + Scores)", expanded=False):
+with st.expander("➕ Add Match ", expanded=False):
     defaults = st.session_state.rematch_defaults
 
     with st.form("add_match_form", clear_on_submit=True):
