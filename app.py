@@ -772,6 +772,121 @@ with st.expander("👤 Player Profile", expanded=False):
 st.markdown("---")
 
 # -------------------------------------------------
+# -------------------------------------------------
+# 🏆 TOURNAMENT MODE
+# -------------------------------------------------
+with st.expander("🏆 Tournament Mode (Round-robin)", expanded=False):
+
+    # Initialize session tournament data
+    if "tournament_active" not in st.session_state:
+        st.session_state.tournament_active = False
+        st.session_state.tournament_players = []
+        st.session_state.tournament_matches = []
+        st.session_state.tournament_results = {}
+
+    # Start new tournament
+    if not st.session_state.tournament_active:
+        st.markdown("### Start a new tournament")
+
+        players_text = st.text_area(
+            "Enter player names (one per line)", 
+            placeholder="Vineeth\nRam\nAbhi\nSai"
+        )
+
+        if st.button("Create Tournament"):
+            players = [normalize(p) for p in players_text.split("\n") if p.strip()]
+            if len(players) < 2:
+                st.error("Add at least 2 players.")
+            else:
+                st.session_state.tournament_active = True
+                st.session_state.tournament_players = players
+
+                # Create round robin fixtures
+                fixtures = []
+                for i in range(len(players)):
+                    for j in range(i+1, len(players)):
+                        fixtures.append((players[i], players[j]))
+
+                st.session_state.tournament_matches = fixtures
+                st.session_state.tournament_results = {
+                    f"{a} vs {b}": {"A":0,"B":0,"done":False}
+                    for a,b in fixtures
+                }
+                st.success("Tournament created!")
+                st.rerun()
+
+    else:
+        # ACTIVE TOURNAMENT UI
+        st.subheader("Current Tournament")
+        st.write("Players:", ", ".join(st.session_state.tournament_players))
+
+        # Display fixtures
+        st.markdown("### Fixtures")
+        for (a, b) in st.session_state.tournament_matches:
+
+            key = f"{a} vs {b}"
+            res = st.session_state.tournament_results[key]
+
+            colA, colB, colC = st.columns([3,3,2])
+            colA.write(f"**{a}** vs **{b}**")
+
+            if not res["done"]:
+                # entering score
+                sA = colB.number_input(f"{a} score", min_value=0, max_value=30, key=f"{key}_A")
+                sB = colB.number_input(f"{b} score", min_value=0, max_value=30, key=f"{key}_B")
+
+                if colC.button("Save", key=f"{key}_save"):
+                    res["A"] = sA
+                    res["B"] = sB
+                    res["done"] = True
+                    st.success(f"Saved: {a} {sA} - {b} {sB}")
+                    st.rerun()
+            else:
+                colB.write(f"**{res['A']} - {res['B']}**")
+                if colC.button("Edit", key=f"{key}_edit"):
+                    res["done"] = False
+                    st.rerun()
+
+        # Standings
+        st.markdown("### Standings")
+        table = {p: {"played":0, "won":0, "lost":0, "points":0} for p in st.session_state.tournament_players}
+
+        for (a,b) in st.session_state.tournament_matches:
+            key = f"{a} vs {b}"
+            res = st.session_state.tournament_results[key]
+            if not res["done"]:
+                continue
+
+            sA, sB = res["A"], res["B"]
+            table[a]["played"] += 1
+            table[b]["played"] += 1
+
+            if sA > sB:
+                table[a]["won"] += 1
+                table[b]["lost"] += 1
+                table[a]["points"] += 2
+            else:
+                table[b]["won"] += 1
+                table[a]["lost"] += 1
+                table[b]["points"] += 2
+
+        standings_df = pd.DataFrame([
+            {"player":p,
+             "played":v["played"],
+             "won":v["won"],
+             "lost":v["lost"],
+             "points":v["points"]}
+        for p,v in table.items()])
+
+        standings_df = standings_df.sort_values(["points","won"], ascending=False)
+        st.dataframe(standings_df)
+
+        # End tournament
+        if st.button("End Tournament"):
+            st.session_state.tournament_active = False
+            st.success("Tournament ended. Standings saved (locally in this session).")
+            st.rerun()
+
 # 🔮 Predict Match Outcome
 # -------------------------------------------------
 with st.expander("🔮 Predict Match Outcome", expanded=False):
