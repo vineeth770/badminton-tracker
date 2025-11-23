@@ -885,6 +885,7 @@ with st.expander("🏆 Tournament Mode (Round-robin)", expanded=False):
             st.session_state.tournament_active = False
             st.success("Tournament ended. Standings saved (locally in this session).")
             st.rerun()
+st.markdown("---")
 # -------------------------------------------------
 # 🔮 Predict Match Outcome
 # -------------------------------------------------
