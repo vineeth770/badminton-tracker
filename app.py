@@ -826,115 +826,274 @@ st.markdown("---")
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🏆 TOURNAMENT MODE (persisted to GitHub JSON)
 # ═══════════════════════════════════════════════════════════════════════════════
-with st.expander("🏆 Tournament Mode (Round-robin)", expanded=False):
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🏆 TOURNAMENT MODE
+# ═══════════════════════════════════════════════════════════════════════════════
+with st.expander("🏆 Tournament Mode", expanded=False):
 
-    # Load persisted tournament once per session
-    if not st.session_state.tournament_loaded:
-        t_data, t_sha = fetch_github_json(TOURNAMENT_PATH)
-        if t_data and t_data.get("active"):
-            st.session_state.tournament_active  = True
-            st.session_state.tournament_players = t_data["players"]
-            st.session_state.tournament_matches = [tuple(m) for m in t_data["matches"]]
-            st.session_state.tournament_results = t_data["results"]
-        st.session_state.tournament_sha    = t_sha
-        st.session_state.tournament_loaded = True
+    tab_knockout, tab_league = st.tabs(
+        ["🥊 Knockouts", "📈 League"]
+    )
 
-    def persist_tournament():
-        data = {
-            "active":  st.session_state.tournament_active,
-            "players": st.session_state.tournament_players,
-            "matches": [list(m) for m in st.session_state.tournament_matches],
-            "results": st.session_state.tournament_results,
-        }
-        new_sha = github_put_json(
-            TOURNAMENT_PATH, data,
-            st.session_state.tournament_sha,
-            "Update tournament",
+    # =======================================================================
+    # 🥊 KNOCKOUT MODE
+    # =======================================================================
+    with tab_knockout:
+
+        st.subheader("Knockout Tournament")
+
+        ko_players_text = st.text_area(
+            "Enter teams (one per line)",
+            placeholder="Vini / Ram\nAbhi / Sai\nKiran / Ajay",
+            key="ko_players",
         )
-        st.session_state.tournament_sha = new_sha
 
-    if not st.session_state.tournament_active:
-        st.markdown("### Start a new tournament")
-        players_text = st.text_area("Player names (one per line)",
-                                     placeholder="Alice\nBob\nCarol\nDave")
-        if st.button("Create Tournament", type="primary"):
-            players = [normalize(p) for p in players_text.split("\n") if p.strip()]
-            players = list(dict.fromkeys(players))   # deduplicate, preserve order
-            if len(players) < 2:
-                st.error("Add at least 2 players.")
+        if st.button("Generate Knockout Bracket", key="ko_generate"):
+
+            ko_teams = [
+                normalize(x)
+                for x in ko_players_text.split("\n")
+                if x.strip()
+            ]
+
+            if len(ko_teams) < 2:
+                st.error("Add at least 2 teams.")
             else:
-                fixtures = [
-                    (players[i], players[j])
-                    for i in range(len(players))
-                    for j in range(i + 1, len(players))
-                ]
-                st.session_state.tournament_active  = True
-                st.session_state.tournament_players = players
-                st.session_state.tournament_matches = fixtures
-                st.session_state.tournament_results = {
-                    f"{a} vs {b}": {"A": 0, "B": 0, "done": False}
-                    for a, b in fixtures
-                }
-                with st.spinner("Saving tournament…"):
-                    persist_tournament()
-                st.success("Tournament created and saved!")
+
+                st.session_state.ko_matches = []
+
+                for i in range(0, len(ko_teams), 2):
+
+                    if i + 1 < len(ko_teams):
+
+                        st.session_state.ko_matches.append({
+                            "teamA": ko_teams[i],
+                            "teamB": ko_teams[i + 1],
+                            "scoreA": 0,
+                            "scoreB": 0,
+                            "winner": "",
+                        })
+
+                st.success("Knockout bracket generated.")
                 st.rerun()
-    else:
-        st.success(f"Active tournament · {len(st.session_state.tournament_players)} players")
-        st.write("Players:", ", ".join(st.session_state.tournament_players))
 
-        st.markdown("### Fixtures")
-        changed = False
-        for a, b in st.session_state.tournament_matches:
-            key = f"{a} vs {b}"
-            res = st.session_state.tournament_results[key]
-            cA, cB, cC = st.columns([3, 3, 2])
-            cA.write(f"**{a}** vs **{b}**")
-            if not res["done"]:
-                sA_ = cB.number_input(f"{a} score", 0, 30, key=f"t_{key}_A")
-                sB_ = cB.number_input(f"{b} score", 0, 30, key=f"t_{key}_B")
-                if cC.button("Save", key=f"t_{key}_sv"):
-                    res["A"] = int(sA_); res["B"] = int(sB_); res["done"] = True
-                    changed = True
-            else:
-                cB.write(f"**{res['A']} – {res['B']}**")
-                if cC.button("Edit", key=f"t_{key}_ed"):
-                    res["done"] = False
-                    changed = True
+        # Display knockout matches
+        if "ko_matches" in st.session_state:
 
-        if changed:
-            with st.spinner("Saving…"):
-                persist_tournament()
-            st.rerun()
+            st.markdown("### Matches")
 
-        # Standings
-        st.markdown("### Standings")
-        table = {p: {"Played": 0, "Won": 0, "Lost": 0, "Points": 0}
-                 for p in st.session_state.tournament_players}
-        for a, b in st.session_state.tournament_matches:
-            res = st.session_state.tournament_results[f"{a} vs {b}"]
-            if not res["done"]:
-                continue
-            table[a]["Played"] += 1; table[b]["Played"] += 1
-            if res["A"] > res["B"]:
-                table[a]["Won"] += 1; table[b]["Lost"] += 1; table[a]["Points"] += 2
-            else:
-                table[b]["Won"] += 1; table[a]["Lost"] += 1; table[b]["Points"] += 2
+            winners = []
 
-        st.dataframe(
-            pd.DataFrame([{"Player": p, **v} for p, v in table.items()])
-            .sort_values(["Points", "Won"], ascending=False)
-            .reset_index(drop=True)
+            for idx, match in enumerate(st.session_state.ko_matches):
+
+                st.markdown(
+                    f"### Match {idx+1}: "
+                    f"{match['teamA']} vs {match['teamB']}"
+                )
+
+                c1, c2 = st.columns(2)
+
+                scoreA = c1.number_input(
+                    f"{match['teamA']} score",
+                    0,
+                    100,
+                    key=f"ko_A_{idx}",
+                )
+
+                scoreB = c2.number_input(
+                    f"{match['teamB']} score",
+                    0,
+                    100,
+                    key=f"ko_B_{idx}",
+                )
+
+                if st.button("Save Result", key=f"ko_save_{idx}"):
+
+                    st.session_state.ko_matches[idx]["scoreA"] = scoreA
+                    st.session_state.ko_matches[idx]["scoreB"] = scoreB
+
+                    if scoreA > scoreB:
+                        winner = match["teamA"]
+                    else:
+                        winner = match["teamB"]
+
+                    st.session_state.ko_matches[idx]["winner"] = winner
+
+                    st.success(f"{winner} advances.")
+
+                    st.rerun()
+
+                if match["winner"]:
+                    st.info(f"Winner: {match['winner']}")
+                    winners.append(match["winner"])
+
+            # Final auto-generation
+            if len(winners) == 2:
+
+                st.markdown("---")
+                st.subheader("🏆 Final")
+
+                finalA = winners[0]
+                finalB = winners[1]
+
+                fc1, fc2 = st.columns(2)
+
+                final_scoreA = fc1.number_input(
+                    f"{finalA} Final Score",
+                    0,
+                    100,
+                    key="finalA",
+                )
+
+                final_scoreB = fc2.number_input(
+                    f"{finalB} Final Score",
+                    0,
+                    100,
+                    key="finalB",
+                )
+
+                if st.button("Save Final"):
+
+                    champion = finalA if final_scoreA > final_scoreB else finalB
+
+                    st.balloons()
+                    st.success(f"🏆 Champion: {champion}")
+
+    # =======================================================================
+    # 📈 LEAGUE MODE
+    # =======================================================================
+    with tab_league:
+
+        st.subheader("League Tournament")
+
+        league_teams_text = st.text_area(
+            "Enter teams (one per line)",
+            placeholder="Vini / Ram\nAbhi / Sai\nKiran / Ajay",
+            key="league_players",
         )
 
-        if st.button("🏁 End Tournament"):
-            st.session_state.tournament_active = False
-            with st.spinner("Saving…"):
-                persist_tournament()
-            st.success("Tournament ended.")
-            st.rerun()
+        if st.button("Create League", key="league_create"):
 
-st.markdown("---")
+            league_teams = [
+                normalize(x)
+                for x in league_teams_text.split("\n")
+                if x.strip()
+            ]
+
+            if len(league_teams) < 2:
+                st.error("Add at least 2 teams.")
+            else:
+
+                fixtures = []
+
+                for i in range(len(league_teams)):
+                    for j in range(i + 1, len(league_teams)):
+
+                        fixtures.append({
+                            "teamA": league_teams[i],
+                            "teamB": league_teams[j],
+                            "scoreA": 0,
+                            "scoreB": 0,
+                            "done": False,
+                        })
+
+                st.session_state.league_matches = fixtures
+                st.success("League created.")
+                st.rerun()
+
+        # Display fixtures
+        if "league_matches" in st.session_state:
+
+            standings = {}
+
+            st.markdown("### Fixtures")
+
+            for idx, match in enumerate(st.session_state.league_matches):
+
+                teamA = match["teamA"]
+                teamB = match["teamB"]
+
+                for t in [teamA, teamB]:
+                    if t not in standings:
+                        standings[t] = {
+                            "P": 0,
+                            "W": 0,
+                            "L": 0,
+                            "Pts": 0,
+                        }
+
+                st.markdown(f"### {teamA} vs {teamB}")
+
+                c1, c2 = st.columns(2)
+
+                scoreA = c1.number_input(
+                    f"{teamA} score",
+                    0,
+                    100,
+                    key=f"league_A_{idx}",
+                )
+
+                scoreB = c2.number_input(
+                    f"{teamB} score",
+                    0,
+                    100,
+                    key=f"league_B_{idx}",
+                )
+
+                if st.button("Save Fixture", key=f"league_save_{idx}"):
+
+                    st.session_state.league_matches[idx]["scoreA"] = scoreA
+                    st.session_state.league_matches[idx]["scoreB"] = scoreB
+                    st.session_state.league_matches[idx]["done"] = True
+
+                    st.rerun()
+
+                if match["done"]:
+
+                    standings[teamA]["P"] += 1
+                    standings[teamB]["P"] += 1
+
+                    if match["scoreA"] > match["scoreB"]:
+
+                        standings[teamA]["W"] += 1
+                        standings[teamB]["L"] += 1
+                        standings[teamA]["Pts"] += 2
+
+                    else:
+
+                        standings[teamB]["W"] += 1
+                        standings[teamA]["L"] += 1
+                        standings[teamB]["Pts"] += 2
+
+            # Standings table
+            st.markdown("---")
+            st.subheader("📊 League Standings")
+
+            standings_df = pd.DataFrame([
+                {
+                    "Team": k,
+                    **v
+                }
+                for k, v in standings.items()
+            ])
+
+            if not standings_df.empty:
+
+                standings_df = standings_df.sort_values(
+                    ["Pts", "W"],
+                    ascending=False,
+                )
+
+                st.dataframe(
+                    standings_df.reset_index(drop=True),
+                    use_container_width=True,
+                )
+
+                if len(standings_df) > 0:
+
+                    leader = standings_df.iloc[0]["Team"]
+
+                    st.success(f"🏆 Current Leader: {leader}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
